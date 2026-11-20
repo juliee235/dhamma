@@ -52,9 +52,9 @@ def test_unread_citation_is_read_and_revised(monkeypatch):
     monkeypatch.setattr(core, "_fetch_unread", lambda res: [("get_passage", "[เล่ม 10 ข้อ 288] เสวยสุขเวทนา")])
     seen = {}
 
-    def fake_revise(q, h, draft, fetched, invalid, bad_quotes, quote_texts):
+    def fake_revise(q, answer, idx, fetched, invalid, bad_quotes, quote_texts):
         seen["fetched"] = fetched
-        return draft
+        return answer
     monkeypatch.setattr(core, "_revise", fake_revise)
     result = list(core.stream_ask("ถาม", use_prefetch=False))[-1]["result"]
     assert seen["fetched"]                                   # the unread paragraph was fetched
@@ -65,7 +65,7 @@ def test_citations_that_stay_unread_are_dropped(monkeypatch):
     monkeypatch.setattr(core, "get_agent", lambda: AnswerAgent())
     monkeypatch.setattr("tipitaka_qa.graph.queries.get_passages", _lookup)
     monkeypatch.setattr(core, "_fetch_unread", lambda res: [])
-    monkeypatch.setattr(core, "_revise", lambda q, h, draft, *rest: draft)
+    monkeypatch.setattr(core, "_revise", lambda q, answer, *rest: answer)
     result = list(core.stream_ask("ถาม", use_prefetch=False))[-1]["result"]
     assert "288" not in result.raw_answer and "[เล่ม 10 ข้อ 274]" in result.raw_answer
     assert [c.status for c in result.cards] == ["verified"]
@@ -116,7 +116,7 @@ def test_revision_failure_keeps_the_draft(monkeypatch):
         def invoke(self, msgs):
             raise TimeoutError("provider down")
     monkeypatch.setattr(core, "get_llm", lambda **kw: Boom())
-    assert core._revise("q", None, "ร่าง", [], [], [], []) == "ร่าง"
+    assert core._revise("q", "ร่าง", [0], [], [], [], []) == "ร่าง"
 
 
 def test_follow_up_skips_prefetch(monkeypatch):
@@ -133,3 +133,30 @@ def test_range_citation_narrows_to_paragraphs_read():
     out = core._narrow_ranges("กาย [เล่ม 10 ข้อ 273–300] จบ [เล่ม 12 ข้อ 1–5]", read)
     assert out == "กาย [เล่ม 10 ข้อ 274][เล่ม 10 ข้อ 279] จบ [เล่ม 12 ข้อ 1–5]"
     assert core._narrow_ranges("[เล่ม 33 พุทธวงศ์ ข้อ 1–3]", {"33.2:2"}) == "[เล่ม 33 พุทธวงศ์ ข้อ 2]"
+
+
+class FakeLLM:
+    def __init__(self, text):
+        self.text_out = text
+
+    def invoke(self, msgs):
+        return type("R", (), {"text": self.text_out})()
+
+
+def test_revision_rewrites_only_the_weak_lines(monkeypatch):
+    answer = "สรุป [เล่ม 10 ข้อ 274]\n- เวทนา [เล่ม 10 ข้อ 288]\n- เดา [เล่ม 10 ข้อ 289]\n- จิต [เล่ม 10 ข้อ 274]"
+    monkeypatch.setattr(core, "get_llm", lambda **kw: FakeLLM("<<1>> - เวทนาสุขทุกข์ [เล่ม 10 ข้อ 288]\n<<2>>\n<<0>> แอบแก้"))
+    out = core._revise("q", answer, [1, 2], [], [], [], [])
+    # line 1 rewritten, line 2 deleted, line 0 untouched although the model tried to change it
+    assert out == "สรุป [เล่ม 10 ข้อ 274]\n- เวทนาสุขทุกข์ [เล่ม 10 ข้อ 288]\n- จิต [เล่ม 10 ข้อ 274]"
+
+
+def test_plan_queries_parses_lines_and_survives_failure(monkeypatch):
+    monkeypatch.setattr(core, "get_llm", lambda **kw: FakeLLM("1. อานิสงส์แห่งทาน\n- อานิสงส์แห่งศีล\n\n“อานิสงส์เมตตา”\nอานิสงส์แห่งทาน"))
+    assert core.plan_queries("อานิสงส์ของบุญ") == ["อานิสงส์แห่งทาน", "อานิสงส์แห่งศีล", "อานิสงส์เมตตา"]
+
+    class Boom:
+        def invoke(self, msgs):
+            raise TimeoutError
+    monkeypatch.setattr(core, "get_llm", lambda **kw: Boom())
+    assert core.plan_queries("x") == []

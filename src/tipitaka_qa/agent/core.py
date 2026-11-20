@@ -9,6 +9,8 @@ stream_ask() yields events for a UI/CLI:
 from __future__ import annotations
 
 import logging
+import re
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import Iterator
 
@@ -35,7 +37,7 @@ SYSTEM_PROMPT = """คุณคือผู้ช่วยค้นคว้า�
 {scope}
 
 วิธีทำงาน
-0. ระบบค้นคำถามและเปิดอ่านผลอันดับต้นให้แล้วหนึ่งรอบ (ผลอยู่ในบทสนทนา) ถ้าเพียงพอให้ตอบได้เลย
+0. ระบบแตกคำถามเป็นหลายคำค้น ค้น และเปิดอ่านผลอันดับต้นของแต่ละแง่มุมให้แล้ว (ผลอยู่ในบทสนทนา) ถ้าเพียงพอให้ตอบได้เลย
    ถ้ายังไม่พอหรือไม่ตรง ให้ค้นเพิ่มตามขั้นตอนด้านล่าง
 1. ค้นก่อนตอบเสมอ ใช้ search หลายครั้งด้วยคำค้นหลายแบบ (ศัพท์ธรรมะ คำพ้อง ชื่อบุคคล/สถานที่ คำบรรยายเหตุการณ์)
    ตัวบทใช้สำนวนแปลแบบเก่า เช่น "ดูกรภิกษุทั้งหลาย", "หายใจออก หายใจเข้า" คำที่ผู้ใช้พิมพ์อาจไม่ปรากฏตรงตัว
@@ -45,8 +47,8 @@ SYSTEM_PROMPT = """คุณคือผู้ช่วยค้นคว้า�
 4. ใช้ get_context หรือ get_sutta เมื่อคำถามเกี่ยวกับโครงสร้าง ลำดับ หรือหัวข้อที่กินหลายข้อ
 5. เรื่องเดียวกันอาจปรากฏหลายนิกาย (เช่น สติปัฏฐานในทีฆนิกายและมัชฌิมนิกาย) ถ้าเกี่ยวข้องให้กล่าวถึงทั้งสองแหล่ง
 6. งบการค้น: เรียกเครื่องมือไม่เกินประมาณ 6–8 รอบต่อคำถาม (เรียกหลายเครื่องมือพร้อมกันในรอบเดียวได้) แล้วตอบ
-   คำถามกว้าง ("มีที่ไหนบ้าง") ให้ตอบจากแหล่งหลัก 2–4 แห่งที่อ่านแล้ว และบอกตำแหน่งอื่นที่พบจาก search
-   โดยไม่ต้องเปิดอ่านทุกแห่ง (ตำแหน่งที่ยังไม่ได้อ่าน ให้บอกเป็นชื่อสูตร/เล่ม ไม่ต้องใส่วงเล็บอ้างอิง)
+   คำถามกว้าง ("ต่าง ๆ", "มีอะไรบ้าง", "มีที่ไหนบ้าง") ให้ครอบคลุมทุกแง่มุมที่อ่านแล้ว อย่าเลือกแค่ 2–3 แหล่ง
+   ตำแหน่งที่พบจาก search แต่ยังไม่ได้อ่าน ให้บอกเป็นชื่อสูตร/เล่ม ไม่ต้องใส่วงเล็บอ้างอิง
 
 กฎการตอบ
 - ทุกย่อหน้าหรือทุกข้อในรายการที่กล่าวถึงเนื้อหาในพระไตรปิฎก ต้องมีอ้างอิงในรูป [เล่ม 10 ข้อ N]
@@ -71,6 +73,8 @@ SYSTEM_PROMPT = """คุณคือผู้ช่วยค้นคว้า�
      ถ้าหลายสูตรพูดเรื่องเดียวกัน ให้รวมเป็นข้อเดียวแล้วอ้างทั้งสองแหล่ง
   3) ถ้ามีที่อื่นกล่าวถึงด้วย ปิดท้ายบรรทัดเดียว เช่น "เรื่องนี้ยังปรากฏใน ... และ ..." ไม่ต้องอธิบายซ้ำ
 - ยาวพอดีคำถาม: คำถามทั่วไปไม่เกินประมาณ 200 คำ ไม่เกิน 5–6 ข้อ เว้นแต่ผู้ใช้ขอรายละเอียด
+  คำถามแบบ "ต่าง ๆ / มีอะไรบ้าง" ได้ถึง 8 ข้อ ข้อละ 1–2 ประโยค และแต่ละข้อต้องบอกเนื้อหาจริง (เช่น อานิสงส์อะไรบ้าง)
+  ไม่ใช่บอกแค่ว่ามีเรื่องนี้ ห้ามเขียนทำนอง "ขอกล่าวเฉพาะ…" หรืออธิบายข้อจำกัดของระบบ
 - ใช้ประโยคสั้น ภาษาพูดที่สุภาพ เลี่ยงสำนวนแปลเก่า (เช่น "ดูกรภิกษุทั้งหลาย") ในส่วนที่เป็นคำอธิบายของคุณ
 - ศัพท์บาลี/ศัพท์ธรรมะ ให้อธิบายความหมายสั้น ๆ ในวงเล็บครั้งแรกที่ใช้ เช่น อุปาทาน (ความยึดติด), อนัตตา (ไม่ใช่ตัวตน)
 - ยกคำพูดตรงจากตัวบทเฉพาะประโยคสำคัญ 1–2 ประโยค แล้วอธิบายเป็นภาษาปัจจุบันว่าหมายถึงอะไร
@@ -79,7 +83,12 @@ SYSTEM_PROMPT = """คุณคือผู้ช่วยค้นคว้า�
 
 RECURSION_LIMIT = 24   # graph steps (~11 tool rounds), then answer from what was read; caps cost/time of broad questions
 PREFETCH_K = 5         # search hits prefetched before the first model call
-PREFETCH_READ = 5      # all of them read in full, so anything cited from them is verified
+PREFETCH_READ = 8      # read in full, spread over the planned queries (round-robin by rank)
+PLAN_MAX = 5           # sub-queries from the planning call
+PLAN_PROMPT = ("แตกคำถามด้านล่างเป็นคำค้นภาษาไทยสำหรับค้นพระไตรปิฎกฉบับแปลไทย ให้ครอบคลุมแง่มุมต่าง ๆ ของคำถาม "
+               "ใช้ศัพท์ที่ตัวบทใช้ (ชื่อหมวดธรรม ชื่อพระสูตร คำบาลีที่ใช้ในฉบับแปล) "
+               "คำถามกว้างให้ 3–5 คำค้น คำถามแคบหรือเจาะจงให้ 1–2 คำค้น "
+               "ตอบเป็นบรรทัดละหนึ่งคำค้นเท่านั้น ไม่ต้องมีเลขลำดับหรือคำอธิบาย")
 SYNTH_MAX_CHARS = 60_000
 HISTORY_TURNS = 8          # follow-up context kept; each turn cut to HISTORY_CHARS
 HISTORY_CHARS = 4_000
@@ -92,11 +101,13 @@ OUT_OF_BUDGET = ("(ระบบหยุดการค้นเพราะค�
 GROUND_MAX_CHARS = 15_000  # total text sent to the revision call (54k chars took ~10 min)
 REVISE_TIMEOUT = 90        # seconds; on timeout the draft is kept and unread citations dropped
 RANGE_KEEP = 2             # a range citation becomes at most this many paragraphs read inside it
-REVISE = ("คำตอบร่างด้านบนอ้างบางข้อโดยยังไม่ได้อ่านตัวบทเต็ม ระบบเปิดตัวบทจริงของข้อเหล่านั้นมาให้แล้วด้านล่าง "
-          "แก้คำตอบให้ทุกประโยคที่อ้างข้อเหล่านี้ตรงกับตัวบทจริง: ถ้าตัวบทสนับสนุน ให้คงไว้ (ปรับถ้อยคำให้ตรงตัวบท) "
-          "ถ้าตัวบทไม่สนับสนุนหรือไม่เกี่ยว ให้แก้หรือตัดประโยคนั้นพร้อมอ้างอิงออก "
-          "ข้อที่ระบบแจ้งว่าไม่มีอยู่จริง ให้ตัดออก ห้ามเพิ่มอ้างอิงใหม่ที่ไม่ได้อยู่ในคำตอบร่างหรือตัวบทด้านล่าง "
-          "ห้ามเพิ่มเนื้อหาจากความรู้ทั่วไป คงโครงและรูปแบบคำตอบเดิม ส่งเฉพาะคำตอบฉบับแก้")
+REVISE = ("ด้านล่างคือบางบรรทัดจากคำตอบที่อ้างข้อซึ่งยังไม่ได้อ่านตัวบท พร้อมตัวบทจริงของข้อเหล่านั้น "
+          "แก้แต่ละบรรทัดให้ตรงกับตัวบทจริง: ถ้าตัวบทสนับสนุน ให้คงไว้ (ปรับถ้อยคำให้ตรง) "
+          "ถ้าไม่ตรง ให้แก้ให้ตรงกับที่ตัวบทกล่าวจริง ถ้าไม่เกี่ยวเลยให้ส่งบรรทัดนั้นเป็นค่าว่าง "
+          "ห้ามเพิ่มอ้างอิงที่ไม่อยู่ในบรรทัดเดิมหรือในตัวบทด้านล่าง ห้ามใช้ความรู้ทั่วไป "
+          "อ้างอิงใช้รูป [เล่ม N ข้อ M] คงรูปแบบ markdown ของบรรทัด (เช่น - หรือ **) "
+          "ตอบเฉพาะบรรทัดที่แก้ ในรูป <<เลขบรรทัด>> ข้อความ")
+_LINE_TAG = re.compile(r"^<<(\d+)>>\s?(.*)$")
 
 
 @lru_cache(maxsize=1)
@@ -154,21 +165,43 @@ def _quote_sources(result: VerifiedAnswer) -> list[str]:
     return out
 
 
-def _revise(question: str, history: list[dict] | None, draft: str, fetched: list[tuple[str, str]],
+def _weak_lines(answer: str, result: VerifiedAnswer) -> list[int]:
+    """Indexes of answer lines that cite an unverified paragraph or hold a failed quote."""
+    weak = {c.ref for c in result.cards if c.status != "verified"}
+    bad_quotes = [q.quote for q in result.quotes if not q.ok]
+    return [i for i, line in enumerate(answer.split("\n"))
+            if any(u.key in weak for c in parse_citations(line, loose=True) for u in c.units)
+            or any(q in line for q in bad_quotes)]
+
+
+def _revise(question: str, answer: str, idx: list[int], fetched: list[tuple[str, str]],
             invalid: list[str], bad_quotes: list[str], quote_texts: list[str]) -> str:
+    """Rewrite only the lines in idx against the real text; every other line stays as written
+    (the model never sees the rest, so it cannot drop it)."""
+    if not idx:
+        return answer
+    lines = answer.split("\n")
+    block = "\n".join(f"<<{i}>> {lines[i]}" for i in idx)
     texts = "\n\n".join([t for _, t in fetched] + quote_texts)
-    notes = f"\nข้อที่ไม่มีอยู่จริง: {', '.join(invalid)}" if invalid else ""
+    notes = f"\nข้อที่ไม่มีอยู่จริง (ลบอ้างอิงนี้): {', '.join(invalid)}" if invalid else ""
     if bad_quotes:
-        notes += ("\nคำพูดใน “…” ต่อไปนี้ไม่ตรงกับตัวบท ให้คัดลอกให้ตรงตัวอักษรจากตัวบทด้านล่าง "
+        notes += ("\nคำพูดใน “…” ต่อไปนี้ไม่ตรงกับตัวบท ให้คัดลอกให้ตรงตัวอักษรจากตัวบท "
                   "หรือเขียนเป็นคำอธิบายโดยไม่ใช้เครื่องหมายคำพูด: " + " | ".join(bad_quotes))
-    msgs = [SystemMessage(system_prompt()), *_history_messages(history),
-            HumanMessage(f"{question}\n\n[คำตอบร่าง]\n{draft}\n\n{REVISE}{notes}\n\n[ตัวบทจริง]\n{texts}")]
+    msg = f"คำถาม: {question}\n\n{REVISE}{notes}\n\n[บรรทัดที่ต้องตรวจ]\n{block}\n\n[ตัวบทจริง]\n{texts}"
     try:
         llm = get_llm(temperature=0.1, timeout=REVISE_TIMEOUT, max_retries=1)
-        return str(llm.invoke(msgs).text).strip() or draft
+        out = str(llm.invoke([HumanMessage(msg)]).text)
     except Exception:
         log.exception("revision failed; keeping the draft, unread citations get dropped")
-        return draft
+        return answer
+    wanted, new = set(idx), {}
+    for raw in out.splitlines():
+        m = _LINE_TAG.match(raw.strip())
+        if m and int(m.group(1)) in wanted:
+            new[int(m.group(1))] = m.group(2).strip()
+    for i, text in new.items():
+        lines[i] = text
+    return "\n".join(line for i, line in enumerate(lines) if not (i in new and not new[i]))
 
 
 def _drop_unverified(answer: str, result: VerifiedAnswer) -> tuple[str, int]:
@@ -222,21 +255,52 @@ def _history_messages(history: list[dict] | None) -> list[BaseMessage]:
     return msgs
 
 
+def plan_queries(question: str) -> list[str]:
+    """A few search phrasings covering the angles of the question (one cheap LLM call).
+    Failure only means the question is searched as typed."""
+    try:
+        llm = get_llm(temperature=0, timeout=30, max_retries=1)
+        text = str(llm.invoke([HumanMessage(f"{PLAN_PROMPT}\n\nคำถาม: {question}")]).text)
+    except Exception:
+        log.exception("query planning failed; searching the question only")
+        return []
+    out: list[str] = []
+    for line in text.splitlines():
+        q = re.sub(r"^[\s\-•*\d๐-๙.)]+", "", line).strip().strip('"“”')
+        if 2 <= len(q) <= 60 and q not in out:
+            out.append(q)
+    return out[:PLAN_MAX]
+
+
 def prefetch(question: str) -> list[BaseMessage]:
-    """Search the question and read the top passages before the first model call, so a simple
-    question can be answered in one model round. Returned as an ordinary tool round (an
-    AIMessage with tool calls + ToolMessages), so the agent and the verifier treat it like any
-    other retrieval."""
+    """Search the question and its planned sub-queries, then read the best passages of every
+    angle before the first model call. Returned as an ordinary tool round (an AIMessage with
+    tool calls + ToolMessages), so the agent and the verifier treat it like any other retrieval."""
     from tipitaka_qa.agent.tools import format_hits, get_passage
     from tipitaka_qa.graph.queries import hybrid_search
 
-    hits = hybrid_search(question, k=PREFETCH_K)
-    calls = [{"name": "search", "args": {"query": question, "k": PREFETCH_K}, "id": "prefetch_search"}]
-    results = [ToolMessage(format_hits(hits), tool_call_id="prefetch_search", name="search")]
-    for i, h in enumerate(hits[:PREFETCH_READ]):
+    queries = list(dict.fromkeys([question, *plan_queries(question)]))
+    with ThreadPoolExecutor(len(queries)) as ex:
+        hit_lists = list(ex.map(lambda q: hybrid_search(q, k=PREFETCH_K), queries))
+    # round-robin by rank: the best hit of every angle is read before any second-best
+    refs: list[str] = []
+    for rank in range(PREFETCH_K):
+        for hits in hit_lists:
+            if rank < len(hits) and hits[rank].ref not in refs:
+                refs.append(hits[rank].ref)
+    refs = refs[:PREFETCH_READ]
+    with ThreadPoolExecutor(max(1, len(refs))) as ex:
+        texts = list(ex.map(lambda r: str(get_passage.invoke({"ref": r})), refs))
+
+    calls, results = [], []
+    for i, (q, hits) in enumerate(zip(queries, hit_lists)):
+        cid = f"prefetch_search_{i}"
+        calls.append({"name": "search", "args": {"query": q, "k": PREFETCH_K}, "id": cid})
+        results.append(ToolMessage(format_hits(hits), tool_call_id=cid, name="search"))
+    for i, (r, text) in enumerate(zip(refs, texts)):
         cid = f"prefetch_read_{i}"
-        calls.append({"name": "get_passage", "args": {"ref": h.ref}, "id": cid})
-        results.append(ToolMessage(get_passage.invoke({"ref": h.ref}), tool_call_id=cid, name="get_passage"))
+        calls.append({"name": "get_passage", "args": {"ref": r}, "id": cid})
+        results.append(ToolMessage(text, tool_call_id=cid, name="get_passage"))
     return [AIMessage("", tool_calls=calls), *results]
 
 
@@ -293,7 +357,8 @@ def stream_ask(question: str, history: list[dict] | None = None, use_prefetch: b
         fetched = _fetch_unread(result)
         invalid = [c.citation for c in result.cards if c.status == "invalid"]
         yield {"type": "notice", "text": "กำลังตรวจคำตอบกับตัวบทจริง"}
-        answer = _revise(question, history, answer, fetched, invalid, bad_quotes, _quote_sources(result))
+        answer = _revise(question, answer, _weak_lines(answer, result), fetched, invalid, bad_quotes,
+                         _quote_sources(result))
         tool_outputs += fetched
         answer, dropped = _drop_unverified(answer, verify(answer, tool_outputs))
         yield {"type": "token", "text": answer}
