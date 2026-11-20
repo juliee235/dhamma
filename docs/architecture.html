@@ -1,0 +1,352 @@
+<title>สถาปัตยกรรม Tipitaka QA</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=Noto+Sans+Thai:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: one reading column; each diagram sits in a wide figure that scrolls sideways on phones. */
+:root {
+  --bg: #f6f7f5;
+  --surface: #ffffff;
+  --ink: #1d2320;
+  --muted: #5d6762;
+  --line: #c9d0cc;
+  --accent: #b5621b;          /* saffron: the robe colour, used for the parts that make this system different */
+  --accent-soft: #f6e6d6;
+  --ok: #24764a; --ok-bg: #e2f2e8;
+  --info: #2a5f96; --info-bg: #e3edf8;
+  --warn: #8a6400; --warn-bg: #f8eecd;
+  --alert: #ad4b12; --alert-bg: #fbe5d6;
+  --bad: #b02a24; --bad-bg: #f8e0de;
+  --display: "Anuphan", "Noto Sans Thai", "Leelawadee UI", sans-serif;
+  --body: "Noto Sans Thai", "Leelawadee UI", "Tahoma", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Consolas", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141816; --surface: #1c211e; --ink: #e6ebe8; --muted: #9aa5a0; --line: #38413c;
+    --accent: #ee9a52; --accent-soft: #3a2a1c;
+    --ok: #6fd39a; --ok-bg: #173324; --info: #8cbcf0; --info-bg: #172a3d; --warn: #f0c75a; --warn-bg: #3a2f10;
+    --alert: #f5a372; --alert-bg: #3d2416; --bad: #f28b82; --bad-bg: #3d1a18;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141816; --surface: #1c211e; --ink: #e6ebe8; --muted: #9aa5a0; --line: #38413c;
+  --accent: #ee9a52; --accent-soft: #3a2a1c;
+  --ok: #6fd39a; --ok-bg: #173324; --info: #8cbcf0; --info-bg: #172a3d; --warn: #f0c75a; --warn-bg: #3a2f10;
+  --alert: #f5a372; --alert-bg: #3d2416; --bad: #f28b82; --bad-bg: #3d1a18;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font: 17px/1.8 var(--body); }
+main {
+  max-width: 1000px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+  display: grid; gap: 40px;
+}
+h1, h2 { font-family: var(--display); text-wrap: balance; line-height: 1.35; margin: 0; }
+h1 { font-size: 2.1rem; font-weight: 700; }
+h2 { font-size: 1.45rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+.lead { color: var(--muted); font-size: 1.05rem; margin-top: 8px; }
+.eyebrow { font: 500 0.78rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+section { display: grid; gap: 14px; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 14px; font-size: 0.95rem; color: var(--muted); }
+.facts b { color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 600; }
+figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 16px 14px; display: grid; gap: 10px; }
+.scroll { overflow-x: auto; }
+svg.diagram { display: block; width: 100%; min-width: 760px; height: auto; color: var(--ink); font-family: var(--body); }
+figcaption { font-size: 0.92rem; color: var(--muted); max-width: 80ch; }
+ol, ul { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; max-width: 72ch; }
+code { font: 0.86em var(--mono); background: var(--accent-soft); padding: 1px 6px; border-radius: 5px; }
+.statuses { display: grid; gap: 8px; }
+.status { display: grid; grid-template-columns: 200px 1fr; gap: 12px; align-items: baseline; }
+.chip { display: inline-block; padding: 1px 10px; border-radius: 7px; font-weight: 600; font-size: 0.9rem; white-space: nowrap; }
+.s-ok { background: var(--ok-bg); color: var(--ok); }
+.s-info { background: var(--info-bg); color: var(--info); }
+.s-warn { background: var(--warn-bg); color: var(--warn); }
+.s-alert { background: var(--alert-bg); color: var(--alert); }
+.s-bad { background: var(--bad-bg); color: var(--bad); text-decoration: line-through; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font-family: var(--display); font-weight: 600; }
+td:first-child { color: var(--muted); white-space: nowrap; }
+.ours { color: var(--accent); font-weight: 600; }
+@media (max-width: 600px) {
+  h1 { font-size: 1.7rem; }
+  .status { grid-template-columns: 1fr; gap: 2px; }
+}
+
+/* SVG parts (theme tokens apply inside inline SVG) */
+.box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+.box-key { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.8; }
+.t { fill: currentColor; font-size: 14px; font-weight: 600; }
+.ts { fill: var(--muted); font-size: 12px; }
+.lbl { fill: var(--muted); font-size: 11.5px; }
+.lbl-key { fill: var(--accent); font-size: 11.5px; font-weight: 600; }
+.edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+.edge-key { stroke: var(--accent); stroke-width: 2; fill: none; }
+.edge-dash { stroke: var(--muted); stroke-width: 1.3; fill: none; stroke-dasharray: 5 4; }
+.head { fill: var(--muted); }
+.head-key { fill: var(--accent); }
+.mono { font-family: var(--mono); font-size: 11.5px; fill: var(--muted); }
+</style>
+
+<main>
+  <header>
+    <div class="eyebrow">Graph-structured agentic RAG</div>
+    <h1>ระบบถามตอบพระไตรปิฎกทำงานอย่างไร</h1>
+    <p class="lead">สองส่วน: เตรียมข้อมูลครั้งเดียว (ตัวบท → กราฟ + ดัชนี) และตอบคำถามทุกครั้ง (ค้น → อ่าน → ตอบ → ตรวจอ้างอิง)</p>
+    <div class="facts">
+      <span><b>45</b> เล่ม</span><span><b>5,495</b> หน่วย (สูตร / สิกขาบท / วรรค)</span>
+      <span><b>43,024</b> ข้อ</span><span><b>52,938</b> chunks ที่มี vector</span><span><b>1,231</b> สรุปโดย AI</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="eyebrow">ส่วนที่ 1 · เตรียมข้อมูล</div>
+    <h2>จากหน้ากระดาษ สู่กราฟที่รู้ว่าแต่ละข้ออยู่ตรงไหน</h2>
+    <figure>
+      <div class="scroll">
+      <svg class="diagram" viewBox="0 0 960 300" role="img" aria-label="ขั้นตอนเตรียมข้อมูล: ไฟล์ CSV รายหน้า ถูก parse เป็นข้อและหัวเรื่อง สร้างโครงสร้าง แบ่ง chunk ทำ embedding แล้วเก็บใน Neo4j โดยมีสรุปพระสูตรจาก DeepSeek เป็นทางแยก">
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head"/></marker>
+          <marker id="a1k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-key"/></marker>
+        </defs>
+        <!-- main row -->
+        <rect class="box" x="10" y="40" width="140" height="74" rx="10"/>
+        <text class="t" x="80" y="70" text-anchor="middle">CSV รายหน้า</text>
+        <text class="ts" x="80" y="92" text-anchor="middle">45 เล่ม · 19,697 หน้า</text>
+
+        <rect class="box-key" x="170" y="40" width="140" height="74" rx="10"/>
+        <text class="t" x="240" y="66" text-anchor="middle">Parse</text>
+        <text class="ts" x="240" y="86" text-anchor="middle">ข้อ [n] · หัวเรื่อง</text>
+        <text class="ts" x="240" y="102" text-anchor="middle">บรรทัด "จบ…"</text>
+
+        <rect class="box-key" x="330" y="40" width="140" height="74" rx="10"/>
+        <text class="t" x="400" y="66" text-anchor="middle">โครงสร้าง</text>
+        <text class="ts" x="400" y="86" text-anchor="middle">หมวด › หน่วย › ตอน</text>
+        <text class="ts" x="400" y="102" text-anchor="middle">ทุกข้ออยู่ 1 หน่วยพอดี</text>
+
+        <rect class="box" x="490" y="40" width="140" height="74" rx="10"/>
+        <text class="t" x="560" y="66" text-anchor="middle">Chunk</text>
+        <text class="ts" x="560" y="86" text-anchor="middle">≤ 1,200 ตัวอักษร</text>
+        <text class="ts" x="560" y="102" text-anchor="middle">+ หัวบริบท</text>
+
+        <rect class="box" x="650" y="40" width="140" height="74" rx="10"/>
+        <text class="t" x="720" y="66" text-anchor="middle">Embed</text>
+        <text class="ts" x="720" y="86" text-anchor="middle">BGE-M3 · 1024 มิติ</text>
+        <text class="ts" x="720" y="102" text-anchor="middle">GPU ในเครื่อง</text>
+
+        <rect class="box" x="810" y="40" width="140" height="74" rx="10"/>
+        <text class="t" x="880" y="66" text-anchor="middle">Neo4j</text>
+        <text class="ts" x="880" y="86" text-anchor="middle">กราฟ + full-text ไทย</text>
+        <text class="ts" x="880" y="102" text-anchor="middle">+ vector index</text>
+
+        <line class="edge" x1="150" y1="77" x2="168" y2="77" marker-end="url(#a1)"/>
+        <line class="edge" x1="310" y1="77" x2="328" y2="77" marker-end="url(#a1)"/>
+        <line class="edge" x1="470" y1="77" x2="488" y2="77" marker-end="url(#a1)"/>
+        <line class="edge" x1="630" y1="77" x2="648" y2="77" marker-end="url(#a1)"/>
+        <line class="edge" x1="790" y1="77" x2="808" y2="77" marker-end="url(#a1)"/>
+
+        <text class="lbl" x="560" y="30" text-anchor="middle">"มัชฌิมนิกาย › สติปัฏฐานสูตร › อานาปานบรรพ" + ตัวบท</text>
+
+        <!-- branch: summaries -->
+        <rect class="box" x="330" y="190" width="300" height="64" rx="10"/>
+        <text class="t" x="480" y="216" text-anchor="middle">สรุประดับหน่วย (DeepSeek)</text>
+        <text class="ts" x="480" y="238" text-anchor="middle">หน่วยยาว ≥ 3,000 ตัวอักษร · สั้นกว่านั้นใช้ข้อความตอนต้น</text>
+        <path class="edge" d="M400,114 L400,188" marker-end="url(#a1)"/>
+        <text class="lbl" x="408" y="156">ตัวบททั้งหน่วย</text>
+        <path class="edge" d="M630,222 L720,222 L720,116" marker-end="url(#a1)"/>
+        <text class="lbl" x="728" y="180">สรุป → vector</text>
+
+        <!-- note under parse -->
+        <text class="lbl-key" x="240" y="138" text-anchor="middle">เลขข้อเริ่มใหม่ในเล่ม</text>
+        <text class="lbl-key" x="240" y="154" text-anchor="middle">→ ภาค: 33.2:1</text>
+        <text class="lbl-key" x="240" y="176" text-anchor="middle">ไม่ทิ้งเนื้อหา: อุททาน/</text>
+        <text class="lbl-key" x="240" y="192" text-anchor="middle">สารบัญ เก็บแยก</text>
+        <text class="lbl" x="880" y="140" text-anchor="middle">ยมก/ปัฏฐาน (เล่ม 38–45)</text>
+        <text class="lbl" x="880" y="156" text-anchor="middle">ถูกลดน้ำหนักในการค้น</text>
+      </svg>
+      </div>
+      <figcaption>สีส้มคือสองขั้นที่ทำให้ระบบนี้ต่างจาก RAG ทั่วไป: parser อ่านโครงสร้างจริงของคัมภีร์ (หัวเรื่องเปิด และบรรทัด "จบ…" ที่ใช้คำนวณช่วงย้อนกลับ) แทนการตัดข้อความเป็นท่อนตามความยาวอย่างเดียว</figcaption>
+    </figure>
+    <ul>
+      <li><b>พระสูตร</b> แบ่งตามหัวเรื่อง เช่น <code>๑. มูลปริยายสูตร</code>, <code>โอฆตรณสูตรที่ ๑</code>, <code>มงคลสูตรในขุททกปาฐะ</code></li>
+      <li><b>พระวินัย</b> แบ่งเป็นกัณฑ์ › สิกขาบท (<code>ปฐมปาราชิกสิกขาบท</code>) และขันธกะ › กถา</li>
+      <li><b>อังคุตตรนิกาย, อปทาน, ปฏิสัมภิทามรรค</b> ไม่มีหัวเรื่องเปิด ใช้บรรทัด "จบ…" สร้างหน่วยย้อนหลัง</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="eyebrow">ข้างในกราฟ</div>
+    <h2>แต่ละข้อรู้ว่าตัวเองอยู่สูตรไหน ตอนไหน และข้อถัดไปคืออะไร</h2>
+    <figure>
+      <div class="scroll">
+      <svg class="diagram" viewBox="0 0 960 320" role="img" aria-label="โครงสร้างกราฟ: Chunk เชื่อมกับ Paragraph, Paragraph อยู่ใน Section และ Sutta และชี้ไปข้อถัดไป, Sutta อยู่ใต้ Division ซึ่งอยู่ใต้ Volume">
+        <defs>
+          <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head"/></marker>
+          <marker id="a2k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-key"/></marker>
+        </defs>
+        <rect class="box" x="40" y="20" width="220" height="52" rx="10"/>
+        <text class="t" x="150" y="42" text-anchor="middle">Volume · เล่ม</text>
+        <text class="ts" x="150" y="61" text-anchor="middle">45 เล่ม · 3 ปิฎก</text>
+
+        <rect class="box" x="40" y="120" width="220" height="52" rx="10"/>
+        <text class="t" x="150" y="142" text-anchor="middle">Division</text>
+        <text class="ts" x="150" y="161" text-anchor="middle">นิบาต / สังยุตต์ / กัณฑ์ / วรรค</text>
+
+        <rect class="box" x="40" y="230" width="220" height="56" rx="10"/>
+        <text class="t" x="150" y="253" text-anchor="middle">Sutta · หน่วย</text>
+        <text class="ts" x="150" y="273" text-anchor="middle">สูตร / สิกขาบท / ชาดก + สรุป</text>
+
+        <rect class="box" x="370" y="120" width="220" height="52" rx="10"/>
+        <text class="t" x="480" y="142" text-anchor="middle">Section · ตอน</text>
+        <text class="ts" x="480" y="161" text-anchor="middle">บรรพ / อนุปัสสนา / ภาณวาร</text>
+
+        <rect class="box-key" x="370" y="230" width="220" height="56" rx="10"/>
+        <text class="t" x="480" y="253" text-anchor="middle">Paragraph · ข้อ</text>
+        <text class="ts" x="480" y="273" text-anchor="middle">ref "10:274" = เล่ม 10 ข้อ 274</text>
+
+        <rect class="box" x="700" y="230" width="220" height="56" rx="10"/>
+        <text class="t" x="810" y="253" text-anchor="middle">ข้อถัดไป</text>
+        <text class="ts" x="810" y="273" text-anchor="middle">10:275</text>
+
+        <rect class="box" x="700" y="110" width="220" height="72" rx="10"/>
+        <text class="t" x="810" y="134" text-anchor="middle">Chunk</text>
+        <text class="ts" x="810" y="153" text-anchor="middle">ข้อความ ≤ 1,200 ตัวอักษร</text>
+        <text class="mono" x="810" y="171" text-anchor="middle">full-text 'thai' · vector 1024</text>
+
+        <line class="edge" x1="150" y1="120" x2="150" y2="74" marker-end="url(#a2)"/>
+        <text class="lbl" x="158" y="101">PART_OF</text>
+        <line class="edge" x1="150" y1="230" x2="150" y2="174" marker-end="url(#a2)"/>
+        <text class="lbl" x="158" y="206">PART_OF</text>
+        <line class="edge" x1="370" y1="160" x2="262" y2="240" marker-end="url(#a2)"/>
+        <text class="lbl" x="300" y="186">PART_OF</text>
+        <line class="edge-key" x1="370" y1="262" x2="262" y2="262" marker-end="url(#a2k)"/>
+        <text class="lbl-key" x="316" y="254" text-anchor="middle">PART_OF</text>
+        <line class="edge-key" x1="480" y1="230" x2="480" y2="174" marker-end="url(#a2k)"/>
+        <text class="lbl-key" x="488" y="206">IN_SECTION</text>
+        <line class="edge-key" x1="590" y1="258" x2="698" y2="258" marker-end="url(#a2k)"/>
+        <text class="lbl-key" x="644" y="250" text-anchor="middle">NEXT</text>
+        <path class="edge" d="M760,182 L760,208 L560,208 L560,228" marker-end="url(#a2)"/>
+        <text class="lbl" x="660" y="200" text-anchor="middle">CHUNK_OF</text>
+      </svg>
+      </div>
+      <figcaption>การค้นทำที่ Chunk แต่คำตอบและการอ้างอิงใช้ Paragraph (ข้อ) เสมอ กราฟพาจากข้อที่เจอไปหาสูตร ตอน และข้อข้างเคียงได้ทันที โดยไม่ต้องค้นซ้ำ</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="eyebrow">ส่วนที่ 2 · ตอบคำถาม</div>
+    <h2>ค้นก่อน อ่านจริง แล้วตรวจทุกอ้างอิงด้วยโปรแกรม</h2>
+    <figure>
+      <div class="scroll">
+      <svg class="diagram" viewBox="0 0 960 400" role="img" aria-label="ขั้นตอนตอบคำถาม: คำถามผ่าน prefetch ไปยัง agent ซึ่งเรียกเครื่องมือค้นใน Neo4j จากนั้นร่างคำตอบพร้อมอ้างอิง ผ่าน verifier ที่ตรวจกับ Neo4j แล้วแสดงในหน้าเว็บ">
+        <defs>
+          <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head"/></marker>
+          <marker id="a3k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="head-key"/></marker>
+        </defs>
+        <!-- column 1 -->
+        <rect class="box" x="20" y="40" width="160" height="58" rx="10"/>
+        <text class="t" x="100" y="65" text-anchor="middle">คำถามผู้ใช้</text>
+        <text class="ts" x="100" y="85" text-anchor="middle">"ปาราชิกข้อแรก…"</text>
+
+        <rect class="box" x="220" y="40" width="180" height="58" rx="10"/>
+        <text class="t" x="310" y="65" text-anchor="middle">Prefetch</text>
+        <text class="ts" x="310" y="85" text-anchor="middle">ค้น + อ่าน 5 ข้อแรกให้ก่อน</text>
+
+        <rect class="box" x="440" y="40" width="190" height="58" rx="10"/>
+        <text class="t" x="535" y="65" text-anchor="middle">Agent · DeepSeek</text>
+        <text class="ts" x="535" y="85" text-anchor="middle">เลือกเครื่องมือเอง ≈ 15 ครั้ง</text>
+
+        <!-- tools -->
+        <rect class="box" x="680" y="20" width="260" height="100" rx="10"/>
+        <text class="t" x="810" y="44" text-anchor="middle">เครื่องมือ</text>
+        <text class="mono" x="700" y="68">search · search_suttas</text>
+        <text class="mono" x="700" y="88">get_sutta · get_context</text>
+        <text class="mono" x="700" y="108">get_passage (อ่านเต็มข้อ)</text>
+
+        <rect class="box" x="680" y="160" width="260" height="96" rx="10"/>
+        <text class="t" x="810" y="184" text-anchor="middle">Hybrid search</text>
+        <text class="ts" x="700" y="206">full-text ไทย + vector (BGE-M3)</text>
+        <text class="ts" x="700" y="226">รวมอันดับแบบ RRF</text>
+        <text class="ts" x="700" y="246">ลดน้ำหนักยมก/ปัฏฐาน</text>
+
+        <rect class="box" x="680" y="300" width="260" height="56" rx="10"/>
+        <text class="t" x="810" y="324" text-anchor="middle">Neo4j</text>
+        <text class="ts" x="810" y="343" text-anchor="middle">กราฟ · ดัชนี · ตัวบท</text>
+
+        <!-- answer path -->
+        <rect class="box" x="440" y="170" width="190" height="58" rx="10"/>
+        <text class="t" x="535" y="195" text-anchor="middle">ร่างคำตอบ</text>
+        <text class="ts" x="535" y="215" text-anchor="middle">อ้างแบบ [เล่ม 1 ข้อ 20]</text>
+
+        <rect class="box-key" x="440" y="300" width="190" height="58" rx="10"/>
+        <text class="t" x="535" y="325" text-anchor="middle">Verifier</text>
+        <text class="ts" x="535" y="345" text-anchor="middle">โปรแกรมตรวจ ไม่ใช้ LLM</text>
+
+        <rect class="box" x="220" y="300" width="180" height="58" rx="10"/>
+        <text class="t" x="310" y="325" text-anchor="middle">หน้าเว็บ</text>
+        <text class="ts" x="310" y="345" text-anchor="middle">ปุ่มสีตามผลตรวจ + ตัวบท</text>
+
+        <!-- edges -->
+        <line class="edge" x1="180" y1="69" x2="218" y2="69" marker-end="url(#a3)"/>
+        <line class="edge" x1="400" y1="69" x2="438" y2="69" marker-end="url(#a3)"/>
+        <text class="lbl" x="419" y="122" text-anchor="middle">ผลค้น + ตัวบท</text>
+        <line class="edge" x1="630" y1="60" x2="678" y2="60" marker-end="url(#a3)"/>
+        <line class="edge" x1="678" y1="82" x2="632" y2="82" marker-end="url(#a3)"/>
+        <text class="lbl" x="654" y="52" text-anchor="middle">เรียก</text>
+        <text class="lbl" x="654" y="98" text-anchor="middle">ผล</text>
+        <line class="edge" x1="810" y1="120" x2="810" y2="158" marker-end="url(#a3)"/>
+        <line class="edge" x1="810" y1="256" x2="810" y2="298" marker-end="url(#a3)"/>
+        <path class="edge-dash" d="M935,120 L935,298" marker-end="url(#a3)"/>
+        <text class="lbl" x="928" y="214" text-anchor="end">อ่านข้อ</text>
+        <line class="edge" x1="535" y1="98" x2="535" y2="168" marker-end="url(#a3)"/>
+        <text class="lbl" x="543" y="138">พอแล้ว → ตอบ</text>
+        <line class="edge-key" x1="535" y1="228" x2="535" y2="298" marker-end="url(#a3k)"/>
+        <line class="edge-key" x1="630" y1="329" x2="678" y2="329" marker-end="url(#a3k)"/>
+        <text class="lbl-key" x="654" y="320" text-anchor="middle">มีจริง?</text>
+        <line class="edge-key" x1="440" y1="329" x2="402" y2="329" marker-end="url(#a3k)"/>
+        <text class="lbl-key" x="421" y="378" text-anchor="middle">การ์ดตัวบท + สถานะ</text>
+        <text class="lbl" x="220" y="160">ครบงบหรือโมเดลตอบว่าง</text>
+        <text class="lbl" x="220" y="176">→ เรียบเรียงจากตัวบทที่อ่านแล้ว</text>
+      </svg>
+      </div>
+      <figcaption>LLM เขียนได้แค่เลขอ้างอิง ส่วนตัวบทที่แสดงในหน้าเว็บมาจากฐานข้อมูลเสมอ อ้างอิงที่ไม่มีอยู่จริงจึงสร้างการ์ดไม่ได้ และจะถูกขีดฆ่าในคำตอบ</figcaption>
+    </figure>
+    <ol>
+      <li><b>Prefetch:</b> ระบบค้นคำถามและแนบตัวบท 5 ข้อแรกให้ agent ก่อนเลย คำถามง่ายจึงตอบได้ในรอบเดียว (ราว 14–30 วินาที)</li>
+      <li><b>Agent:</b> ถ้ายังไม่พอ agent ค้นเพิ่มด้วยคำอื่น หาว่าเรื่องอยู่สูตรไหน ดูโครงสร้างหมวด หรืออ่านข้อเต็ม</li>
+      <li><b>ร่างคำตอบ:</b> ภาษาง่าย เรียงตามประเด็น และใส่อ้างอิงท้ายข้อ</li>
+      <li><b>Verifier:</b> ดึงทุกอ้างอิงจากคำตอบ ไปค้นในฐานข้อมูล แล้วให้สถานะ รวมถึงเช็กว่าคำพูดในเครื่องหมาย “…” ตรงกับตัวบทจริง</li>
+      <li><b>Grounding:</b> อ้างอิงที่ยังไม่ใช่สีเขียว หรือคำพูดที่ไม่ตรงตัวบท ระบบเปิดตัวบทจริงให้ AI แก้คำตอบอีกรอบ ที่ยังยืนยันไม่ได้จะถูกตัดออกพร้อมบรรทัดนั้น ผู้ใช้จึงเห็นเฉพาะสีเขียว</li>
+    </ol>
+    <p>สถานะภายในของ verifier (สีอื่นใช้ตัดสินว่าต้องแก้อะไร ไม่แสดงต่อผู้ใช้แล้ว):</p>
+    <div class="statuses">
+      <div class="status"><span class="chip s-ok">อ่านตัวบทแล้ว</span><span>มีอยู่จริง และ agent เปิดอ่านเต็มข้อระหว่างตอบ</span></div>
+      <div class="status"><span class="chip s-info">อ้างทั้งหมวด</span><span>อ้างเป็นช่วงที่ตรงกับหมวดในโครงสร้าง เช่น ข้อ 274–287</span></div>
+      <div class="status"><span class="chip s-warn">เห็นบางส่วน</span><span>มีอยู่จริง แต่ agent เห็นแค่ข้อความสั้นจากผลค้น</span></div>
+      <div class="status"><span class="chip s-alert">ไม่ได้เปิดอ่าน</span><span>มีอยู่จริง แต่ไม่เคยปรากฏในผลค้นของรอบนี้</span></div>
+      <div class="status"><span class="chip s-bad">ไม่มีอยู่จริง</span><span>ไม่มีข้อนี้ในฐานข้อมูล ระบบตั้งธงในคำตอบ</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">เทียบกับ GraphRAG ทั่วไป</div>
+    <h2>กราฟมาจากโครงสร้างคัมภีร์ ไม่ใช่ให้ LLM เดา</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th></th><th>Microsoft GraphRAG</th><th class="ours">ของเรา (แนว FourCorners)</th></tr></thead>
+        <tbody>
+          <tr><td>สร้างกราฟ</td><td>LLM ดึง entity และความสัมพันธ์จากข้อความ</td><td>parser อ่านหัวเรื่องและบรรทัด "จบ…" ของคัมภีร์จริง</td></tr>
+          <tr><td>ค้นหา</td><td>สรุปตามกลุ่มในกราฟ (community)</td><td>full-text + vector แล้วไล่กราฟ (สูตร ตอน ข้อถัดไป)</td></tr>
+          <tr><td>ใครใช้กราฟ</td><td>ระบบดึงให้อัตโนมัติ</td><td>agent เลือกเครื่องมือเอง</td></tr>
+          <tr><td>การอ้างอิง</td><td>มักไม่ถึงระดับย่อหน้า</td><td>ระดับข้อ และตรวจด้วยโปรแกรมทุกครั้ง</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>

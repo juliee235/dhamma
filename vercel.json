@@ -1,0 +1,14 @@
+{
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 300,
+      "includeFiles": "src/tipitaka_qa/**"
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/ping",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

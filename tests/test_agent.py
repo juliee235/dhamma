@@ -1,0 +1,135 @@
+"""Agent harness behaviour without calling the LLM."""
+from langchain_core.messages import AIMessage, ToolMessage
+from langgraph.errors import GraphRecursionError
+
+from tipitaka_qa.agent import core
+
+
+class FakeAgent:
+    """Streams one tool round, then hits the recursion limit."""
+
+    def stream(self, inputs, stream_mode, config):
+        call = AIMessage("", tool_calls=[{"name": "get_passage", "args": {"ref": "10:274"}, "id": "c1"}])
+        yield "updates", {"model": {"messages": [call]}}
+        yield "updates", {"tools": {"messages": [
+            ToolMessage("[เล่ม 10 ข้อ 274] มหาสติปัฏฐานสูตร\nมีสติหายใจออก", tool_call_id="c1", name="get_passage")]}}
+        raise GraphRecursionError("limit")
+
+
+class EmptyAnswerAgent:
+    """One tool round, then an empty final message (seen once from the provider)."""
+
+    def stream(self, inputs, stream_mode, config):
+        call = AIMessage("", tool_calls=[{"name": "get_passage", "args": {"ref": "10:274"}, "id": "c1"}])
+        yield "updates", {"model": {"messages": [call]}}
+        yield "updates", {"tools": {"messages": [
+            ToolMessage("[เล่ม 10 ข้อ 274] ...", tool_call_id="c1", name="get_passage")]}}
+        yield "updates", {"model": {"messages": [AIMessage("")]}}
+
+
+PASSAGE = {"ref": "10:274", "citation": "เล่ม 10 ข้อ 274", "sutta": "มหาสติปัฏฐานสูตร",
+           "section_path": [], "text": "มีสติหายใจออก", "page_start": 1, "page_end": 1}
+
+
+class AnswerAgent:
+    """Reads 10:274, then answers citing 10:274 (read) and 10:288 (never read)."""
+
+    def stream(self, inputs, stream_mode, config):
+        call = AIMessage("", tool_calls=[{"name": "get_passage", "args": {"ref": "10:274"}, "id": "c1"}])
+        yield "updates", {"model": {"messages": [call]}}
+        yield "updates", {"tools": {"messages": [
+            ToolMessage("[เล่ม 10 ข้อ 274] มีสติหายใจออก", tool_call_id="c1", name="get_passage")]}}
+        yield "updates", {"model": {"messages": [AIMessage("หายใจ [เล่ม 10 ข้อ 274] เวทนา [เล่ม 10 ข้อ 288]")]}}
+
+
+def _lookup(refs):
+    return {r: {**PASSAGE, "ref": r} for r in refs if r in ("10:274", "10:288")}
+
+
+def test_unread_citation_is_read_and_revised(monkeypatch):
+    monkeypatch.setattr(core, "get_agent", lambda: AnswerAgent())
+    monkeypatch.setattr("tipitaka_qa.graph.queries.get_passages", _lookup)
+    monkeypatch.setattr(core, "_fetch_unread", lambda res: [("get_passage", "[เล่ม 10 ข้อ 288] เสวยสุขเวทนา")])
+    seen = {}
+
+    def fake_revise(q, h, draft, fetched, invalid, bad_quotes, quote_texts):
+        seen["fetched"] = fetched
+        return draft
+    monkeypatch.setattr(core, "_revise", fake_revise)
+    result = list(core.stream_ask("ถาม", use_prefetch=False))[-1]["result"]
+    assert seen["fetched"]                                   # the unread paragraph was fetched
+    assert {c.status for c in result.cards} == {"verified"}  # and now counts as read
+
+
+def test_citations_that_stay_unread_are_dropped(monkeypatch):
+    monkeypatch.setattr(core, "get_agent", lambda: AnswerAgent())
+    monkeypatch.setattr("tipitaka_qa.graph.queries.get_passages", _lookup)
+    monkeypatch.setattr(core, "_fetch_unread", lambda res: [])
+    monkeypatch.setattr(core, "_revise", lambda q, h, draft, *rest: draft)
+    result = list(core.stream_ask("ถาม", use_prefetch=False))[-1]["result"]
+    assert "288" not in result.raw_answer and "[เล่ม 10 ข้อ 274]" in result.raw_answer
+    assert [c.status for c in result.cards] == ["verified"]
+    assert any("ตัดข้อความ" in w for w in result.warnings)
+
+
+def test_empty_final_answer_is_resynthesized(monkeypatch):
+    monkeypatch.setattr(core, "get_agent", lambda: EmptyAnswerAgent())
+    monkeypatch.setattr(core, "_synthesize", lambda q, h, p: "คำตอบ [เล่ม 10 ข้อ 274]")
+    monkeypatch.setattr("tipitaka_qa.graph.queries.get_passages", lambda refs: {r: PASSAGE for r in refs})
+    events = list(core.stream_ask("ถาม", use_prefetch=False))
+    assert "notice" in [e["type"] for e in events]
+    assert events[-1]["result"].raw_answer == "คำตอบ [เล่ม 10 ข้อ 274]"
+
+
+def test_recursion_limit_falls_back_to_a_verified_answer(monkeypatch):
+    monkeypatch.setattr(core, "get_agent", lambda: FakeAgent())
+    seen = {}
+
+    def fake_synth(question, history, produced):
+        seen["tool_messages"] = [m for m in produced if isinstance(m, ToolMessage)]
+        return "ให้มีสติหายใจออก [เล่ม 10 ข้อ 274]"
+
+    monkeypatch.setattr(core, "_synthesize", fake_synth)
+    lookup = {"10:274": {"ref": "10:274", "citation": "เล่ม 10 ข้อ 274", "sutta": "มหาสติปัฏฐานสูตร",
+                         "section_path": [], "text": "มีสติหายใจออก", "page_start": 1, "page_end": 1}}
+    monkeypatch.setattr("tipitaka_qa.graph.queries.get_passages",
+                        lambda refs: {r: lookup[r] for r in refs if r in lookup})
+
+    events = list(core.stream_ask("สติปัฏฐาน", use_prefetch=False))
+    types = [e["type"] for e in events]
+    assert "notice" in types and types[-1] == "final"
+    assert len(seen["tool_messages"]) == 1                  # synthesis sees what was retrieved
+    result = events[-1]["result"]
+    assert result.cards[0].status == "verified"            # still verified against the graph
+
+
+def test_unsupported_line_is_removed_with_its_citation():
+    result = type("R", (), {"cards": [type("C", (), {"ref": "10:288", "status": "unread"})()]})()
+    answer = "สรุป [เล่ม 10 ข้อ 274]\n- เวทนา [เล่ม 10 ข้อ 288]\n- จิต [เล่ม 10 ข้อ 274][เล่ม 10 ข้อ 288]\nดูเล่ม 10 ข้อ 288 ด้วย"
+    out, dropped = core._drop_unverified(answer, result)
+    assert out == "สรุป [เล่ม 10 ข้อ 274]\n- จิต [เล่ม 10 ข้อ 274]"
+    assert dropped == 3
+
+
+def test_revision_failure_keeps_the_draft(monkeypatch):
+    class Boom:
+        def invoke(self, msgs):
+            raise TimeoutError("provider down")
+    monkeypatch.setattr(core, "get_llm", lambda **kw: Boom())
+    assert core._revise("q", None, "ร่าง", [], [], [], []) == "ร่าง"
+
+
+def test_follow_up_skips_prefetch(monkeypatch):
+    monkeypatch.setattr(core, "get_agent", lambda: AnswerAgent())
+    monkeypatch.setattr("tipitaka_qa.graph.queries.get_passages", _lookup)
+    monkeypatch.setattr(core, "prefetch", lambda q: (_ for _ in ()).throw(AssertionError("prefetched")))
+    monkeypatch.setattr(core, "_fetch_unread", lambda res: [])
+    events = list(core.stream_ask("แล้วข้อ ๒ ล่ะ", history=[{"role": "user", "content": "ถาม"}]))
+    assert events[-1]["type"] == "final"
+
+
+def test_range_citation_narrows_to_paragraphs_read():
+    read = {"10:274", "10:279", "10:294"}
+    out = core._narrow_ranges("กาย [เล่ม 10 ข้อ 273–300] จบ [เล่ม 12 ข้อ 1–5]", read)
+    assert out == "กาย [เล่ม 10 ข้อ 274][เล่ม 10 ข้อ 279] จบ [เล่ม 12 ข้อ 1–5]"
+    assert core._narrow_ranges("[เล่ม 33 พุทธวงศ์ ข้อ 1–3]", {"33.2:2"}) == "[เล่ม 33 พุทธวงศ์ ข้อ 2]"

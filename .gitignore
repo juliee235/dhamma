@@ -1,0 +1,20 @@
+# secrets
+.env
+
+# data (downloaded via scripts; Thai translation license unverified)
+data/raw/
+data/processed/
+neo4j/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+
+.vercel
+
+# local env variants and tool state
+.env.*
+.claude/

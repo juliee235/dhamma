@@ -1,0 +1,12 @@
+.venv
+data
+neo4j
+tests
+docs
+uv.lock
+pyproject.toml
+**/__pycache__
+.pytest_cache
+src/tipitaka_qa/ui
+.env
+.env.*

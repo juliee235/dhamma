@@ -1,0 +1,12 @@
+# Runtime only (what Vercel installs). Indexing needs torch / sentence-transformers / huggingface_hub:
+# install those locally with `uv sync` (see pyproject.toml).
+python-dotenv>=1.0
+neo4j>=5.20
+fastapi>=0.115
+pydantic>=2.7
+openai>=1.40
+numpy>=1.26
+langchain>=1.0
+langchain-core>=1.0
+langchain-openai>=1.0
+langgraph>=1.0
