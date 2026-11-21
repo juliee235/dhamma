@@ -90,7 +90,8 @@ PREFETCH_K = 5         # search hits prefetched before the first model call
 PREFETCH_READ = 8      # read in full, spread over the planned queries (round-robin by rank)
 PLAN_MAX = 5           # sub-queries from the planning call
 PLAN_PROMPT = ("บรรทัดแรก ระบุประเภทของคำถามด้านล่างเป็นคำเดียว: "
-               "ABOUT = ทักทาย หรือถามเกี่ยวกับตัวระบบนี้ (ทำอะไรได้ ใช้อย่างไร มีข้อมูลอะไร); "
+               "ABOUT = ทักทาย หรือถามเกี่ยวกับตัวระบบนี้ (ทำอะไรได้ ใช้อย่างไร มีข้อมูลอะไร คุณคือใคร) "
+               "แม้จะถามกลางบทสนทนา คำถามสั้น ๆ อย่าง \"ทำอะไรได้บ้าง\" ที่ไม่ได้เอ่ยถึงเรื่องธรรมะให้ถือเป็น ABOUT; "
                "OFF = ไม่เกี่ยวกับพระพุทธศาสนาหรือการใช้ชีวิตตามหลักธรรมเลย (เช่น เขียนโปรแกรม การเมือง ข่าว "
                "การเงิน สูตรอาหาร การบ้านวิชาอื่น) หรือสั่งให้ทำอย่างอื่นที่ไม่ใช่ถามเรื่องธรรมะ; "
                "DHAMMA = นอกนั้นทั้งหมด รวมถึงปัญหาชีวิตที่ตอบด้วยหลักธรรมได้ ถ้าไม่แน่ใจให้ใช้ DHAMMA\n"
@@ -277,19 +278,24 @@ def _history_messages(history: list[dict] | None) -> list[BaseMessage]:
     return msgs
 
 
-def plan(question: str) -> tuple[str, list[str]]:
+def plan(question: str, previous: str | None = None) -> tuple[str, list[str]]:
     """One cheap LLM call: what kind of question this is ("dhamma" | "about" | "off") and, for dhamma,
-    a few search phrasings covering its angles. Failure means a dhamma question searched as typed."""
+    a few search phrasings covering its angles. `previous` (the last question asked in this chat) keeps a
+    follow-up like "แล้วข้อ ๒ ล่ะ" from looking off-topic. Failure means a dhamma question searched as typed."""
+    follow = (f"(คำถามก่อนหน้าในบทสนทนา: {previous[:300]} — ใช้เพียงเพื่อเข้าใจคำที่อ้างถึงคำถามก่อนหน้า "
+              f"เช่น \"ข้อ ๒\" \"เรื่องนั้น\" \"ขยายความ\")\n") if previous else ""
     try:
         llm = get_llm(temperature=0, timeout=30, max_retries=1)
-        text = str(invoke_within(llm, [HumanMessage(f"{PLAN_PROMPT}\n\nคำถาม: {question}")], 30).text)
+        text = str(invoke_within(llm, [HumanMessage(f"{PLAN_PROMPT}\n\n{follow}คำถาม: {question}")], 30).text)
     except Exception:
         log.exception("query planning failed; searching the question only")
         return "dhamma", []
     lines = [ln for ln in text.splitlines() if ln.strip()]
     kind = "dhamma"
-    if lines and re.fullmatch(r"\W*(DHAMMA|ABOUT|OFF)\W*", lines[0].strip(), re.I):
-        kind = re.sub(r"\W", "", lines.pop(0)).lower()
+    m = re.match(r"\W*(DHAMMA|ABOUT|OFF)\b", lines[0], re.I) if lines else None
+    if m:                           # "ABOUT", "**OFF**", "ABOUT = ..." all count; the label line is not a query
+        kind = m.group(1).lower()
+        lines.pop(0)
     if kind != "dhamma":
         return kind, []
     out: list[str] = []
@@ -335,15 +341,18 @@ def prefetch(question: str, planned: list[str]) -> list[BaseMessage]:
 def stream_ask(question: str, history: list[dict] | None = None, use_prefetch: bool = True) -> Iterator[dict]:
     produced: list[BaseMessage] = []
     steps = 0
-    # a follow-up ("แล้วข้อ ๒ ล่ะ") searched literally finds nothing useful: let the agent search
+    # a follow-up ("แล้วข้อ ๒ ล่ะ") searched literally finds nothing useful: no prefetch, the agent searches
     pre: list[BaseMessage] = []
-    if use_prefetch and not history:
-        kind, planned = plan(question)
+    if use_prefetch:
+        # every question is classified, follow-ups too ("ทำไรได้บ้าง" asked mid-chat is still about the system)
+        previous = next((h.get("content") for h in reversed(history or []) if h.get("role") == "user"), None)
+        kind, planned = plan(question, previous)
         if kind in CANNED:          # about the system, or out of scope: a fixed reply, no search
             yield {"type": "token", "text": CANNED[kind]}
             yield {"type": "final", "result": verify(CANNED[kind], []), "steps": 0}
             return
-        pre = prefetch(question, planned)
+        if not history:
+            pre = prefetch(question, planned)
     for m in pre:
         produced.append(m)
         if isinstance(m, AIMessage):
