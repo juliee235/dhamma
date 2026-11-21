@@ -540,6 +540,23 @@ function observeReels() {
 }
 function pauseReels() { document.querySelectorAll(".reel-video").forEach((v) => v.pause()); }
 
+// info shows when a clip starts and whenever it is paused; 3 s into playback it gets out of the way
+const infoTimers = new WeakMap();
+document.addEventListener("play", (e) => {
+  const v = e.target;
+  if (!v.classList?.contains("reel-video")) return;
+  const reel = v.closest(".reel");
+  reel.classList.remove("watching");
+  clearTimeout(infoTimers.get(v));
+  infoTimers.set(v, setTimeout(() => { if (!v.paused) reel.classList.add("watching"); }, 3000));
+}, true);
+document.addEventListener("pause", (e) => {
+  const v = e.target;
+  if (!v.classList?.contains("reel-video")) return;
+  clearTimeout(infoTimers.get(v));
+  v.closest(".reel").classList.remove("watching");
+}, true);
+
 document.addEventListener("click", (e) => {
   const tab = e.target.closest("[data-view]");
   if (tab) { showView(tab.dataset.view); return; }
