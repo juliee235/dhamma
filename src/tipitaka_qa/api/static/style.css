@@ -241,7 +241,7 @@ button.cite:hover { border-color: currentColor; }
 
 /* ================= Easy reading (older readers) =================
    Larger text that follows the ก-/ก+ buttons (--fs), stronger contrast, bigger targets. */
-:root { --fs: 21px; --muted: #4f473d; --border: #cfc4b2; }
+:root { --fs: 17px; --muted: #4f473d; --border: #cfc4b2; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --muted: #c9bfae; --border: #4a4236; } }
 body { font-size: var(--fs); line-height: 1.85; }
 .brand h1 { font-size: 1.15em; }
@@ -370,4 +370,27 @@ button.cite { text-decoration: underline; text-underline-offset: 3px; }
   .chat, .drama { min-height: 0; }
   .reel { padding: 0; }
   .reel-frame { width: 100%; aspect-ratio: auto; border-radius: 0; }
+}
+
+/* ================= phones: less chrome, more room for the answer ================= */
+@media (min-width: 601px) { .disc-short, .only-phone { display: none; } }
+@media (max-width: 600px) {
+  .topbar { padding: 6px 12px; gap: 8px; }
+  .brand { gap: 8px; }
+  .brand .mark { font-size: 24px; }
+  .brand h1 { font-size: 1em; white-space: nowrap; }
+  .topbar-actions { gap: 6px; }
+  .font-size button, #new-chat { min-height: 38px; padding: 2px 10px; font-size: 0.75em; }
+  .messages { padding: 12px 14px 8px; }
+  .msg { margin-bottom: 18px; }
+  /* the answer reads as plain text on the page, not a boxed card: full width, no frame */
+  .msg.bot .card { background: transparent; border: 0; box-shadow: none; padding: 0; }
+  .composer { padding: 6px 12px 2px; gap: 8px; }
+  .composer textarea { min-height: 50px; padding: 10px 12px; }
+  #send { min-height: 50px; padding: 8px 18px; }
+  .disclaimer { margin: 0 auto 6px; padding: 0 12px; font-size: 12px !important; line-height: 1.4; }
+  .disc-full { display: none; }
+  .welcome h2 { font-size: 1.2em; }
+  .credit { margin-top: 18px !important; font-size: 0.7em; line-height: 1.5; }
+  .sidenav button { min-height: 46px; }
 }

@@ -560,17 +560,18 @@ document.addEventListener("click", (e) => {
 
 // ---------- text size (for older readers) ----------
 const SIZES = [17, 19, 21, 24];
-function applySize(i) {
+// only a size the reader chose is remembered ("fontStep" was also written on every visit, so it is ignored)
+function applySize(i, remember = false) {
   i = Math.max(0, Math.min(SIZES.length - 1, i));
   document.documentElement.style.setProperty("--fs", SIZES[i] + "px");
-  try { localStorage.setItem("fontStep", String(i)); } catch { /* storage unavailable */ }
+  if (remember) try { localStorage.setItem("textSize", String(i)); } catch { /* storage unavailable */ }
   return i;
 }
-let sizeStep = 2;
-try { const v = localStorage.getItem("fontStep"); if (v !== null) sizeStep = Number(v); } catch { /* ignore */ }
+let sizeStep = 0;
+try { const v = localStorage.getItem("textSize"); if (v !== null) sizeStep = Number(v); } catch { /* ignore */ }
 sizeStep = applySize(sizeStep);
-$("#font-down").addEventListener("click", () => { sizeStep = applySize(sizeStep - 1); });
-$("#font-up").addEventListener("click", () => { sizeStep = applySize(sizeStep + 1); });
+$("#font-down").addEventListener("click", () => { sizeStep = applySize(sizeStep - 1, true); });
+$("#font-up").addEventListener("click", () => { sizeStep = applySize(sizeStep + 1, true); });
 
 initWelcome();
 let startView = "chat";
