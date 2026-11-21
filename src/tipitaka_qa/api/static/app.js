@@ -500,6 +500,9 @@ function openStory(i) {
   $("#drama-story").hidden = false;
   feed.scrollTop = 0;
   observeReels();
+  // start the first clip inside this tap: browsers allow sound only for playback a person started
+  const first = feed.querySelector(".reel-video");
+  if (first) playReel(first);
   $("#drama-back").focus();
 }
 function closeStory() {
@@ -512,8 +515,8 @@ function closeStory() {
 
 function reelHTML(d) {
   const media = d.video
-    ? `<video class="reel-video" src="${esc(d.video)}"${d.poster ? ` poster="${esc(d.poster)}"` : ""} playsinline loop muted preload="metadata"></video>
-       <button type="button" class="reel-sound" aria-label="เปิดเสียง">🔇</button>`
+    ? `<video class="reel-video" src="${esc(d.video)}"${d.poster ? ` poster="${esc(d.poster)}"` : ""} playsinline loop preload="metadata"></video>
+       <button type="button" class="reel-sound" aria-label="${soundOn ? "ปิดเสียง" : "เปิดเสียง"}">${soundOn ? "🔊" : "🔇"}</button>`
     : `<div class="reel-placeholder"><span class="soon">ยังไม่มีวิดีโอ</span><p>${esc(d.summary)}</p></div>`;
   return `<article class="reel" aria-label="${esc(d.title)}"><div class="reel-frame">${media}
     <div class="reel-info">
@@ -524,6 +527,26 @@ function reelHTML(d) {
     </div></div></article>`;
 }
 
+// sound is on by default; if the browser refuses to play with sound (no recent tap), the clip plays muted
+// and the speaker shows 🔇 so one tap turns it on
+let soundOn = true;
+function syncSound() {
+  document.querySelectorAll(".reel-video").forEach((v) => { v.muted = !soundOn; });
+  document.querySelectorAll(".reel-sound").forEach((b) => {
+    b.textContent = soundOn ? "🔊" : "🔇";
+    b.setAttribute("aria-label", soundOn ? "ปิดเสียง" : "เปิดเสียง");
+  });
+}
+function playReel(v) {
+  v.muted = !soundOn;
+  v.play().catch(() => {
+    if (v.muted) return;              // refused even muted: the reader taps to play
+    soundOn = false;
+    syncSound();
+    v.play().catch(() => {});
+  });
+}
+
 let reelObserver = null;
 function observeReels() {
   // play the clip that is on screen, pause the rest
@@ -532,7 +555,7 @@ function observeReels() {
     for (const e of entries) {
       const v = e.target.querySelector("video");
       if (!v) continue;
-      if (e.isIntersecting) v.play().catch(() => { /* autoplay refused: tap to play */ });
+      if (e.isIntersecting) playReel(v);
       else v.pause();
     }
   }, { threshold: 0.6 });
@@ -565,14 +588,14 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("#drama-back")) { closeStory(); return; }
   const sound = e.target.closest(".reel-sound");
   if (sound) {
+    soundOn = !soundOn;
+    syncSound();
     const v = sound.parentElement.querySelector("video");
-    v.muted = !v.muted;
-    sound.textContent = v.muted ? "🔇" : "🔊";
-    sound.setAttribute("aria-label", v.muted ? "เปิดเสียง" : "ปิดเสียง");
+    if (v.paused) playReel(v);
     return;
   }
   const video = e.target.closest(".reel-video");
-  if (video) { if (video.paused) video.play().catch(() => {}); else video.pause(); }
+  if (video) { if (video.paused) playReel(video); else video.pause(); }
 });
 
 // ---------- text size (for older readers) ----------
