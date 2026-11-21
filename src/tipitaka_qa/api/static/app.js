@@ -441,23 +441,53 @@ function showView(name) {
   document.querySelectorAll("[data-view]").forEach((b) =>
     b.setAttribute("aria-current", b.dataset.view === name ? "page" : "false"));
   $("#new-chat").hidden = name !== "chat";
-  if (name === "drama") loadDramas(); else pauseReels();
+  if (name === "drama") { loadDramas(); if (!$("#drama-story").hidden) observeReels(); } else pauseReels();
   try { localStorage.setItem("view", name); } catch { /* storage unavailable */ }
 }
 
-let dramasLoaded = false;
+// the drama tab opens on a shelf of stories; choosing one opens its episodes as the vertical feed
+let dramas = null;
 async function loadDramas() {
-  if (dramasLoaded) return;
-  dramasLoaded = true;
-  const feed = $("#drama-feed");
+  if (dramas) return;
+  const shelf = $("#drama-list");
   try {
-    const list = await (await fetch("/static/dramas.json")).json();
-    feed.innerHTML = list.length ? list.map(reelHTML).join("") : '<p class="drama-note">ยังไม่มีละคร</p>';
-    observeReels();
+    dramas = await (await fetch("/static/dramas.json")).json();
+    shelf.innerHTML = dramas.length ? dramas.map(storyHTML).join("") : '<p class="drama-note">ยังไม่มีละคร</p>';
   } catch {
-    dramasLoaded = false;
-    feed.innerHTML = '<p class="drama-note">โหลดละครไม่สำเร็จ ลองกดแท็บอีกครั้ง</p>';
+    dramas = null;
+    shelf.innerHTML = '<p class="drama-note">โหลดละครไม่สำเร็จ ลองกดแท็บอีกครั้ง</p>';
   }
+}
+
+const thaiNum = (n) => String(n).replace(/\d/g, (d) => "๐๑๒๓๔๕๖๗๘๙"[d]);
+function storyHTML(s, i) {
+  const n = s.episodes.length;
+  const cover = s.poster
+    ? `<img src="${esc(s.poster)}" alt="" loading="lazy">`
+    : `<span class="story-blank" aria-hidden="true">${esc(s.title.slice(0, 1))}</span>`;
+  return `<button type="button" class="story" data-story="${i}">${cover}
+    <span class="story-text"><strong>${esc(s.title)}</strong>
+    <span class="story-meta">${n ? `${thaiNum(n)} ตอน` : "ยังไม่มีวิดีโอ"} · ${esc(s.source)}</span></span></button>`;
+}
+
+function openStory(i) {
+  const s = dramas[i];
+  // a story without video yet still opens: one card with its summary and the passage link
+  const eps = s.episodes.length ? s.episodes : [{ title: s.title, source: s.source, ref: s.ref, summary: s.summary }];
+  const feed = $("#drama-feed");
+  feed.innerHTML = eps.map(reelHTML).join("");
+  $("#drama-list").hidden = true;
+  $("#drama-story").hidden = false;
+  feed.scrollTop = 0;
+  observeReels();
+  $("#drama-back").focus();
+}
+function closeStory() {
+  pauseReels();
+  reelObserver?.disconnect();
+  $("#drama-feed").innerHTML = "";
+  $("#drama-story").hidden = true;
+  $("#drama-list").hidden = false;
 }
 
 function reelHTML(d) {
@@ -470,7 +500,6 @@ function reelHTML(d) {
       <h3>${esc(d.title)}</h3>${d.video ? `<p>${esc(d.summary)}</p>` : ""}
       <div class="reel-actions">
         <button type="button" class="reel-btn" data-open="${esc(d.ref)}">📖 อ่านตัวบท · ${esc(d.source)}</button>
-        <button type="button" class="reel-btn" data-ask-drama="${esc(d.question)}">💬 ถามต่อ</button>
       </div>
     </div></div></article>`;
 }
@@ -494,8 +523,9 @@ function pauseReels() { document.querySelectorAll(".reel-video").forEach((v) => 
 document.addEventListener("click", (e) => {
   const tab = e.target.closest("[data-view]");
   if (tab) { showView(tab.dataset.view); return; }
-  const more = e.target.closest("[data-ask-drama]");
-  if (more) { showView("chat"); ask(more.dataset.askDrama); return; }
+  const story = e.target.closest("[data-story]");
+  if (story) { openStory(+story.dataset.story); return; }
+  if (e.target.closest("#drama-back")) { closeStory(); return; }
   const sound = e.target.closest(".reel-sound");
   if (sound) {
     const v = sound.parentElement.querySelector("video");
