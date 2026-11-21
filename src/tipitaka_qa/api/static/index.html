@@ -33,7 +33,12 @@
   </header>
 
   <main class="layout">
-    <section class="chat" aria-label="บทสนทนา">
+    <nav class="sidenav" aria-label="เมนู">
+      <button type="button" data-view="chat" aria-current="page"><span class="ico" aria-hidden="true">💬</span>แชท</button>
+      <button type="button" data-view="drama" aria-current="false"><span class="ico" aria-hidden="true">🎬</span>ละครสั้น</button>
+    </nav>
+
+    <section id="view-chat" class="chat" aria-label="บทสนทนา">
       <div id="messages" class="messages" aria-live="polite">
         <div id="welcome" class="welcome">
           <h2>ถามเรื่องในพระไตรปิฎกได้เลย</h2>
@@ -62,6 +67,10 @@
         คำตอบเรียบเรียงโดย AI อาจผิดพลาดได้ โปรดตรวจกับตัวบทในแหล่งอ้างอิงเสมอ ·
         เพื่อการศึกษา ไม่แสวงหากำไร · ตัวบทจากพระไตรปิฎกภาษาไทย (ชุดข้อมูล uisp/tripitaka-siamrath)
       </p>
+    </section>
+
+    <section id="view-drama" class="drama" aria-label="ละครสั้นจากพระไตรปิฎก" hidden>
+      <div id="drama-feed" class="drama-feed"><p class="drama-note">กำลังโหลด…</p></div>
     </section>
 
     <aside id="reader" class="reader" hidden aria-label="ตัวบท">

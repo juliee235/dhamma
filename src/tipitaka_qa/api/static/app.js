@@ -429,7 +429,86 @@ $("#new-chat").addEventListener("click", () => {
   state.cards = {};
   messagesEl.innerHTML = welcomeHTML;
   reader.hidden = true;
-  // ---------- text size (for older readers) ----------
+  initWelcome();
+  input.focus();
+});
+
+// ---------- left tabs: chat / short dramas ----------
+const VIEWS = ["chat", "drama"];
+function showView(name) {
+  if (!VIEWS.includes(name)) name = "chat";
+  for (const v of VIEWS) $(`#view-${v}`).hidden = v !== name;
+  document.querySelectorAll("[data-view]").forEach((b) =>
+    b.setAttribute("aria-current", b.dataset.view === name ? "page" : "false"));
+  $("#new-chat").hidden = name !== "chat";
+  if (name === "drama") loadDramas(); else pauseReels();
+  try { localStorage.setItem("view", name); } catch { /* storage unavailable */ }
+}
+
+let dramasLoaded = false;
+async function loadDramas() {
+  if (dramasLoaded) return;
+  dramasLoaded = true;
+  const feed = $("#drama-feed");
+  try {
+    const list = await (await fetch("/static/dramas.json")).json();
+    feed.innerHTML = list.length ? list.map(reelHTML).join("") : '<p class="drama-note">ยังไม่มีละคร</p>';
+    observeReels();
+  } catch {
+    dramasLoaded = false;
+    feed.innerHTML = '<p class="drama-note">โหลดละครไม่สำเร็จ ลองกดแท็บอีกครั้ง</p>';
+  }
+}
+
+function reelHTML(d) {
+  const media = d.video
+    ? `<video class="reel-video" src="${esc(d.video)}"${d.poster ? ` poster="${esc(d.poster)}"` : ""} playsinline loop muted preload="metadata"></video>
+       <button type="button" class="reel-sound" aria-label="เปิดเสียง">🔇</button>`
+    : `<div class="reel-placeholder"><span class="soon">ยังไม่มีวิดีโอ</span><p>${esc(d.summary)}</p></div>`;
+  return `<article class="reel" aria-label="${esc(d.title)}"><div class="reel-frame">${media}
+    <div class="reel-info">
+      <h3>${esc(d.title)}</h3>${d.video ? `<p>${esc(d.summary)}</p>` : ""}
+      <div class="reel-actions">
+        <button type="button" class="reel-btn" data-open="${esc(d.ref)}">📖 อ่านตัวบท · ${esc(d.source)}</button>
+        <button type="button" class="reel-btn" data-ask-drama="${esc(d.question)}">💬 ถามต่อ</button>
+      </div>
+    </div></div></article>`;
+}
+
+let reelObserver = null;
+function observeReels() {
+  // play the clip that is on screen, pause the rest
+  reelObserver?.disconnect();
+  reelObserver = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      const v = e.target.querySelector("video");
+      if (!v) continue;
+      if (e.isIntersecting) v.play().catch(() => { /* autoplay refused: tap to play */ });
+      else v.pause();
+    }
+  }, { threshold: 0.6 });
+  document.querySelectorAll(".reel").forEach((r) => reelObserver.observe(r));
+}
+function pauseReels() { document.querySelectorAll(".reel-video").forEach((v) => v.pause()); }
+
+document.addEventListener("click", (e) => {
+  const tab = e.target.closest("[data-view]");
+  if (tab) { showView(tab.dataset.view); return; }
+  const more = e.target.closest("[data-ask-drama]");
+  if (more) { showView("chat"); ask(more.dataset.askDrama); return; }
+  const sound = e.target.closest(".reel-sound");
+  if (sound) {
+    const v = sound.parentElement.querySelector("video");
+    v.muted = !v.muted;
+    sound.textContent = v.muted ? "🔇" : "🔊";
+    sound.setAttribute("aria-label", v.muted ? "เปิดเสียง" : "ปิดเสียง");
+    return;
+  }
+  const video = e.target.closest(".reel-video");
+  if (video) { if (video.paused) video.play().catch(() => {}); else video.pause(); }
+});
+
+// ---------- text size (for older readers) ----------
 const SIZES = [17, 19, 21, 24];
 function applySize(i) {
   i = Math.max(0, Math.min(SIZES.length - 1, i));
@@ -444,7 +523,6 @@ $("#font-down").addEventListener("click", () => { sizeStep = applySize(sizeStep 
 $("#font-up").addEventListener("click", () => { sizeStep = applySize(sizeStep + 1); });
 
 initWelcome();
-  input.focus();
-});
-
-initWelcome();
+let startView = "chat";
+try { startView = localStorage.getItem("view") || "chat"; } catch { /* ignore */ }
+showView(startView);

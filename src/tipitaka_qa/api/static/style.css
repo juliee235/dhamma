@@ -271,3 +271,66 @@ button.cite { text-decoration: underline; text-underline-offset: 3px; }
   border-radius: 8px; background: var(--surface-2); color: var(--text);
   font-weight: 600;
 }
+
+/* ================= left tabs: chat / short dramas ================= */
+[hidden] { display: none !important; }
+.sidenav {
+  width: 96px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 8px; border-right: 1px solid var(--border); background: var(--surface);
+}
+.sidenav button {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 72px;
+  padding: 10px 4px; border: 0; border-radius: 12px; background: transparent;
+  font-size: 0.72em; font-weight: 600; color: var(--muted); line-height: 1.3;
+}
+.sidenav .ico { font-size: 1.7em; line-height: 1; }
+.sidenav button:hover { background: var(--surface-2); }
+.sidenav button[aria-current="page"] { background: var(--surface-2); color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.sidenav button:focus-visible, .reel-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* vertical feed: one 9:16 clip per screen, snap scrolling like Reels/TikTok */
+.drama { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #0f0d0b; }
+.drama-feed { flex: 1; min-height: 0; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; }
+.drama-note { color: #cfc4b2; text-align: center; padding: 40px 16px; margin: 0; }
+.reel { height: 100%; scroll-snap-align: start; scroll-snap-stop: always; display: flex; justify-content: center; align-items: center; padding: 14px 0; }
+.reel-frame {
+  position: relative; height: 100%; aspect-ratio: 9 / 16; max-width: 100%;
+  border-radius: 18px; overflow: hidden; color: #fff;
+  background: radial-gradient(120% 80% at 20% 0%, #7a3d10 0%, #2a1a0d 55%, #120e0a 100%);
+}
+.reel-video { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
+.reel-placeholder {
+  position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 14px;
+  padding: 28px 24px 42%; font: 1em/1.85 var(--serif);
+}
+.reel-placeholder p { margin: 0; }
+.soon { align-self: flex-start; font: 600 0.68em/1.8 var(--sans); padding: 0 12px; border-radius: 999px; background: rgb(255 255 255 / 16%); }
+.reel-info { position: absolute; inset: auto 0 0 0; padding: 56px 16px 18px; background: linear-gradient(transparent, rgb(0 0 0 / 78%)); }
+.reel-info h3 { margin: 0 0 4px; font-size: 1.15em; line-height: 1.4; }
+.reel-info p { margin: 0 0 10px; font-size: 0.8em; line-height: 1.6; opacity: 0.92; }
+.reel-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.reel-btn {
+  min-height: 44px; padding: 6px 14px; border-radius: 999px; font-size: 0.72em; font-weight: 600;
+  border: 1px solid rgb(255 255 255 / 55%); background: rgb(0 0 0 / 38%); color: #fff;
+}
+.reel-btn:hover { background: rgb(255 255 255 / 18%); }
+.reel-sound {
+  position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; border-radius: 50%;
+  border: 0; background: rgb(0 0 0 / 45%); color: #fff; font-size: 1.1em;
+}
+@media (prefers-reduced-motion: reduce) { .drama-feed { scroll-behavior: auto; } }
+
+/* phones: tabs move to a bottom bar, clips go full screen */
+@media (max-width: 900px) {
+  .layout { flex-direction: column; }
+  .sidenav {
+    order: 2; width: auto; flex-direction: row; gap: 4px; border-right: 0; border-top: 1px solid var(--border);
+    padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px));
+  }
+  .sidenav button { flex: 1; flex-direction: row; justify-content: center; gap: 8px; min-height: 52px; font-size: 0.8em; }
+  .sidenav .ico { font-size: 1.3em; }
+  .sidenav button[aria-current="page"] { box-shadow: inset 0 3px 0 var(--accent); }
+  .chat, .drama { min-height: 0; }
+  .reel { padding: 0; }
+  .reel-frame { width: 100%; aspect-ratio: auto; border-radius: 0; }
+}
