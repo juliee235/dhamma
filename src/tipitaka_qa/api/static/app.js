@@ -375,7 +375,7 @@ async function initWelcome() {
   if (ex) ex.innerHTML = EXAMPLES.map((q) => `<button type="button" class="example" data-ask="${esc(q)}">${esc(q)}</button>`).join("");
   fetch("/api/stats").then((r) => r.json()).then(({ answered }) => {
     const el = $("[data-stats]");
-    if (!el || !answered) return;          // nothing to brag about yet: keep it hidden
+    if (!el || typeof answered !== "number") return;
     el.innerHTML = `ตอบไปแล้ว <b>${answered.toLocaleString("th-TH")}</b> คำถาม`;
     el.hidden = false;
   }).catch(() => { /* the count is optional */ });
