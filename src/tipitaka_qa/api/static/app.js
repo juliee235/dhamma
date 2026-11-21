@@ -241,6 +241,7 @@ async function ask(question) {
   } finally {
     setBusy(false);
     scrollDown();
+    loadStats();
   }
 }
 
@@ -369,16 +370,31 @@ async function openToc(volume) {
   readerBody.scrollTop = 0;
 }
 
+// ---------- answered count (welcome) and today's quota (above the composer) ----------
+async function loadStats() {
+  try {
+    const { answered, remaining, limit } = await (await fetch("/api/stats")).json();
+    const count = $("[data-stats]");
+    if (count && typeof answered === "number") {
+      count.innerHTML = `ตอบไปแล้ว <b>${answered.toLocaleString("th-TH")}</b> คำถาม`;
+      count.hidden = false;
+    }
+    const quota = $("#quota");
+    if (typeof remaining === "number") {
+      quota.innerHTML = remaining > 0
+        ? `วันนี้เหลือ <b>${remaining}/${limit}</b> คำถาม`
+        : `วันนี้ถามครบ <b>${limit}/${limit}</b> แล้ว พรุ่งนี้ถามต่อได้`;
+      quota.classList.toggle("out", remaining === 0);
+      quota.hidden = false;
+    }
+  } catch { /* both are optional */ }
+}
+
 // ---------- welcome ----------
 async function initWelcome() {
   const ex = $("#examples");
   if (ex) ex.innerHTML = EXAMPLES.map((q) => `<button type="button" class="example" data-ask="${esc(q)}">${esc(q)}</button>`).join("");
-  fetch("/api/stats").then((r) => r.json()).then(({ answered }) => {
-    const el = $("[data-stats]");
-    if (!el || typeof answered !== "number") return;
-    el.innerHTML = `ตอบไปแล้ว <b>${answered.toLocaleString("th-TH")}</b> คำถาม`;
-    el.hidden = false;
-  }).catch(() => { /* the count is optional */ });
+  loadStats();
   const list = $("#volume-list");
   try {
     const vols = await (await fetch("/api/volumes")).json();

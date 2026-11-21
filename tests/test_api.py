@@ -19,6 +19,9 @@ class Quota:
         self.n -= 1
         return self.n >= 0
 
+    def remaining(self, ip: str) -> int:
+        return max(0, self.n)
+
 
 @pytest.fixture(autouse=True)
 def _no_counting(monkeypatch):
@@ -151,9 +154,13 @@ def test_daily_limit_and_counter_in_the_database(monkeypatch):
 
     lim, ip = server.DailyLimiter(2), f"test-{datetime.now().timestamp()}"
     try:
+        assert lim.remaining(ip) == 2
         assert [lim.allow(ip) for _ in range(3)] == [True, True, False]
+        assert lim.remaining(ip) == 0
         assert lim.allow(ip + "-other")                       # another address has its own count
     finally:
         keys = [server.quota_key(x, server.today()) for x in (ip, ip + "-other")]
         q.get_driver().execute_query("MATCH (r:RateLimit) WHERE r.key IN $keys DELETE r", keys=keys)
-    assert isinstance(client.get("/api/stats").json()["answered"], int)
+    monkeypatch.setattr(server, "limiter", Quota(7))
+    st = client.get("/api/stats").json()
+    assert isinstance(st["answered"], int) and st["remaining"] == 7 and st["limit"] == server.RATE_LIMIT

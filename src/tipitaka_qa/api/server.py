@@ -83,6 +83,16 @@ class DailyLimiter:
             return True
         return bool(rec)
 
+    def remaining(self, ip: str) -> int | None:
+        """Questions this IP has left today (None if the database can't be read)."""
+        try:
+            rec = q.get_driver().execute_query("MATCH (r:RateLimit {key: $key}) RETURN r.n AS n",
+                                               key=quota_key(ip, today())).records
+        except Exception:
+            log.exception("could not read the quota")
+            return None
+        return max(0, self.limit - (rec[0]["n"] if rec else 0))
+
 
 limiter = DailyLimiter(RATE_LIMIT)
 
@@ -203,8 +213,8 @@ def ping() -> dict:
 
 
 @app.get("/api/stats")
-def stats() -> dict:
-    return {"answered": answered()}
+def stats(request: Request) -> dict:
+    return {"answered": answered(), "remaining": limiter.remaining(client_ip(request)), "limit": RATE_LIMIT}
 
 
 @app.get("/api/health")
