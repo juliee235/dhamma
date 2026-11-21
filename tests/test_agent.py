@@ -176,6 +176,14 @@ def test_plan_parses_kind_and_lines_and_survives_failure(monkeypatch):
     assert core.plan("x") == ("dhamma", [])
 
 
+def test_common_system_questions_skip_the_model(monkeypatch):
+    monkeypatch.setattr(core, "get_llm", lambda **kw: (_ for _ in ()).throw(AssertionError("model called")))
+    for q in ("ทำไรได้บ้าง", "ทำอะไรได้บ้างครับ", "คุณช่วยอะไรได้บ้าง?", "ใช้ยังไง", "คุณคือใคร", "สวัสดีค่ะ", "Hello!"):
+        assert core.plan(q) == ("about", []), q
+    for q in ("ทำบุญอะไรได้บ้าง", "สติปัฏฐาน ๔ มีอะไรบ้าง", "ทำไรได้บ้างเมื่อโกรธ"):
+        assert not core.is_about(q), q
+
+
 def test_about_and_off_topic_get_a_fixed_reply_without_search(monkeypatch):
     monkeypatch.setattr(core, "prefetch", lambda q, p: (_ for _ in ()).throw(AssertionError("searched")))
     monkeypatch.setattr(core, "get_agent", lambda: (_ for _ in ()).throw(AssertionError("agent ran")))

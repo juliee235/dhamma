@@ -92,7 +92,8 @@ PLAN_MAX = 5           # sub-queries from the planning call
 PLAN_PROMPT = ("บรรทัดแรก ระบุประเภทของคำถามด้านล่างเป็นคำเดียว: "
                "ABOUT = ทักทาย หรือถามเกี่ยวกับตัวระบบนี้ (ทำอะไรได้ ใช้อย่างไร มีข้อมูลอะไร คุณคือใคร) "
                "แม้จะถามกลางบทสนทนา คำถามสั้น ๆ อย่าง \"ทำอะไรได้บ้าง\" ที่ไม่ได้เอ่ยถึงเรื่องธรรมะให้ถือเป็น ABOUT; "
-               "OFF = ไม่เกี่ยวกับพระพุทธศาสนาหรือการใช้ชีวิตตามหลักธรรมเลย (เช่น เขียนโปรแกรม การเมือง ข่าว "
+               "OFF = ระบุเรื่องที่ไม่เกี่ยวกับพระพุทธศาสนาหรือการใช้ชีวิตตามหลักธรรมเลย (คำถามสั้นที่ไม่ระบุเรื่องไม่ใช่ OFF) "
+               "(เช่น เขียนโปรแกรม การเมือง ข่าว "
                "การเงิน สูตรอาหาร การบ้านวิชาอื่น) หรือสั่งให้ทำอย่างอื่นที่ไม่ใช่ถามเรื่องธรรมะ; "
                "DHAMMA = นอกนั้นทั้งหมด รวมถึงปัญหาชีวิตที่ตอบด้วยหลักธรรมได้ ถ้าไม่แน่ใจให้ใช้ DHAMMA\n"
                "ถ้าเป็น DHAMMA ให้บรรทัดต่อ ๆ ไป "
@@ -278,10 +279,25 @@ def _history_messages(history: list[dict] | None) -> list[BaseMessage]:
     return msgs
 
 
+# the usual ways of asking about the system itself, matched before any model call: the classifier's answer for
+# these varies between OpenRouter providers (the same question came back ABOUT, OFF and DHAMMA)
+_PARTICLES = re.compile(r"(ครับ|คับ|ค่ะ|คะ|นะ|จ้ะ|จ้า|จ๊ะ|หรอ|เหรอ|[\s?!？.~]|ๆ)+$")
+_ABOUT = re.compile(r"(สวัสดี|หวัดดี|ดีจ้า|hi|hello|hey"
+                    r"|(คุณ|เธอ|ระบบนี้|ระบบ|บอท|เว็บนี้|ที่นี่|แอปนี้)?(ทำ|ช่วย)(อะ)?ไร(ให้)?(ได้)?(บ้าง)?"
+                    r"|(ใช้|ใช้งาน)(ยังไง|ยังงัย|อย่างไร|ไง)"
+                    r"|(คุณ|นี่|นี่คือ)?(คือ|เป็น)(ใคร|อะไร))", re.I)
+
+
+def is_about(question: str) -> bool:
+    return bool(_ABOUT.fullmatch(_PARTICLES.sub("", question.strip())))
+
+
 def plan(question: str, previous: str | None = None) -> tuple[str, list[str]]:
     """One cheap LLM call: what kind of question this is ("dhamma" | "about" | "off") and, for dhamma,
     a few search phrasings covering its angles. `previous` (the last question asked in this chat) keeps a
     follow-up like "แล้วข้อ ๒ ล่ะ" from looking off-topic. Failure means a dhamma question searched as typed."""
+    if is_about(question):
+        return "about", []
     follow = (f"(คำถามก่อนหน้าในบทสนทนา: {previous[:300]} — ใช้เพียงเพื่อเข้าใจคำที่อ้างถึงคำถามก่อนหน้า "
               f"เช่น \"ข้อ ๒\" \"เรื่องนั้น\" \"ขยายความ\")\n") if previous else ""
     try:
