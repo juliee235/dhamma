@@ -365,7 +365,9 @@ def stream_ask(question: str, history: list[dict] | None = None, use_prefetch: b
         kind, planned = plan(question, previous)
         if kind in CANNED:          # about the system, or out of scope: a fixed reply, no search
             yield {"type": "token", "text": CANNED[kind]}
-            yield {"type": "final", "result": verify(CANNED[kind], []), "steps": 0}
+            result = verify(CANNED[kind], [])
+            result.warnings.clear()     # nothing was retrieved, so "no citations" is not worth a note
+            yield {"type": "final", "result": result, "steps": 0}
             return
         if not history:
             pre = prefetch(question, planned)
