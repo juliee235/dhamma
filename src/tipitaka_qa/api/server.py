@@ -135,6 +135,11 @@ class ChatIn(BaseModel):
 
 app = FastAPI(title="Tipitaka QA", docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+# Drama videos live in public/videos: on Vercel the CDN serves public/ (a function can't return files that big);
+# locally this mount serves the same paths.
+VIDEOS = Path(__file__).resolve().parents[3] / "public" / "videos"
+if VIDEOS.is_dir():
+    app.mount("/videos", StaticFiles(directory=VIDEOS), name="videos")
 
 
 @app.get("/")
