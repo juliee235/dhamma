@@ -373,6 +373,12 @@ async function openToc(volume) {
 async function initWelcome() {
   const ex = $("#examples");
   if (ex) ex.innerHTML = EXAMPLES.map((q) => `<button type="button" class="example" data-ask="${esc(q)}">${esc(q)}</button>`).join("");
+  fetch("/api/stats").then((r) => r.json()).then(({ answered }) => {
+    const el = $("[data-stats]");
+    if (!el || !answered) return;          // nothing to brag about yet: keep it hidden
+    el.innerHTML = `ตอบไปแล้ว <b>${answered.toLocaleString("th-TH")}</b> คำถาม`;
+    el.hidden = false;
+  }).catch(() => { /* the count is optional */ });
   const list = $("#volume-list");
   try {
     const vols = await (await fetch("/api/volumes")).json();

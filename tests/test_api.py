@@ -4,10 +4,25 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tipitaka_qa.api import server
-from tipitaka_qa.api.server import RateLimiter, app, tokenize_answer
+from tipitaka_qa.api.server import app, tokenize_answer
 from tipitaka_qa.verify.citations import verify
 
 client = TestClient(app)
+
+
+class Quota:
+    """Stands in for the database-backed daily limiter: allows `n` questions in all."""
+    def __init__(self, n: int):
+        self.n = n
+
+    def allow(self, ip: str) -> bool:
+        self.n -= 1
+        return self.n >= 0
+
+
+@pytest.fixture(autouse=True)
+def _no_counting(monkeypatch):
+    monkeypatch.setattr(server, "count_answer", lambda: None)   # tests must not touch the site's answer count
 
 
 def _events(text: str) -> list[tuple[str, dict]]:
@@ -45,7 +60,7 @@ def test_chat_streams_steps_tokens_and_verified_final(monkeypatch):
         yield {"type": "final", "result": result, "steps": 1}
 
     monkeypatch.setattr("tipitaka_qa.agent.core.stream_ask", fake_stream)
-    monkeypatch.setattr(server, "limiter", RateLimiter(100, 600))
+    monkeypatch.setattr(server, "limiter", Quota(100))
     r = client.post("/api/chat", json={"question": " ถาม ", "history": [{"role": "user", "content": "ก่อนหน้า"}]})
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream")
     events = _events(r.text)
@@ -65,14 +80,14 @@ def test_chat_error_becomes_error_event(monkeypatch):
         yield  # pragma: no cover
 
     monkeypatch.setattr("tipitaka_qa.agent.core.stream_ask", boom)
-    monkeypatch.setattr(server, "limiter", RateLimiter(100, 600))
+    monkeypatch.setattr(server, "limiter", Quota(100))
     events = _events(client.post("/api/chat", json={"question": "ถาม"}).text)
     assert events[-1][0] == "error" and "upstream" not in events[-1][1]["message"]
 
 
 def test_chat_validation_and_rate_limit(monkeypatch):
     monkeypatch.setattr("tipitaka_qa.agent.core.stream_ask", lambda q, h: iter(()))
-    monkeypatch.setattr(server, "limiter", RateLimiter(2, 600))
+    monkeypatch.setattr(server, "limiter", Quota(2))
     assert client.post("/api/chat", json={"question": ""}).status_code == 422
     assert client.post("/api/chat", json={"question": "ก" * 501}).status_code == 422
     assert client.post("/api/chat", json={"question": "a"}).status_code == 200
@@ -127,3 +142,18 @@ def test_book_part_passages_and_toc():
     assert {u["part"] for u in toc["units"]} == {1, 2, 3}
     vols = {v["no"]: v for v in client.get("/api/volumes").json()}
     assert [p["name"] for p in vols[33]["parts"]] == ["พุทธวงศ์", "จริยาปิฎก"]
+
+
+@graph
+def test_daily_limit_and_counter_in_the_database(monkeypatch):
+    from datetime import datetime
+    from tipitaka_qa.graph import queries as q
+
+    lim, ip = server.DailyLimiter(2), f"test-{datetime.now().timestamp()}"
+    try:
+        assert [lim.allow(ip) for _ in range(3)] == [True, True, False]
+        assert lim.allow(ip + "-other")                       # another address has its own count
+    finally:
+        keys = [server.quota_key(x, server.today()) for x in (ip, ip + "-other")]
+        q.get_driver().execute_query("MATCH (r:RateLimit) WHERE r.key IN $keys DELETE r", keys=keys)
+    assert isinstance(client.get("/api/stats").json()["answered"], int)

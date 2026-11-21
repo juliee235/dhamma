@@ -14,9 +14,9 @@ import json
 import logging
 import os
 import re
-import threading
-import time
-from collections import defaultdict, deque
+import hashlib
+import hmac
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Literal
 
@@ -26,6 +26,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from tipitaka_qa.agent.cli import describe_call
+from tipitaka_qa.config import settings
 from tipitaka_qa.graph import queries as q
 from tipitaka_qa.refs import citation_prefix, format_ref, ref_key, split_ref
 from tipitaka_qa.verify.citations import STATUS_LABEL, VerifiedAnswer, parse_citations
@@ -35,35 +36,72 @@ log = logging.getLogger("tipitaka_qa.api")
 STATIC = Path(__file__).parent / "static"
 MAX_QUESTION_CHARS = 500
 MAX_HISTORY_MESSAGES = 8          # last 4 exchanges are sent to the agent
-RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_10MIN", "10"))   # questions per IP per 10 minutes
-RATE_WINDOW = 600
+RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_DAY", "10"))     # questions per IP per day (Thai time)
+THAI_TZ = timezone(timedelta(hours=7))                      # Asia/Bangkok, no daylight saving
 MAX_RANGE = 200
 
 
-# ---------- rate limit (in-memory, per IP) ----------
+# ---------- daily limit and the answer counter (in Neo4j, shared by every server instance) ----------
+# Per-process memory would reset on every cold start and differ between instances, so both live in the database.
+# IPs are never stored: only an HMAC of (IP, day), so a key cannot be traced back or linked across days.
 
-class RateLimiter:
-    def __init__(self, limit: int, window: float):
-        self.limit, self.window = limit, window
-        self.hits: dict[str, deque[float]] = defaultdict(deque)
-        self.lock = threading.Lock()
+_SECRET = (os.getenv("RATE_SALT") or settings.neo4j_password).encode()   # any stable secret both envs already have
+_schema_ready = False
 
-    def allow(self, key: str) -> bool:
-        now = time.time()
-        with self.lock:
-            dq = self.hits[key]
-            while dq and now - dq[0] > self.window:
-                dq.popleft()
-            if len(self.hits) > 10_000:          # forget idle IPs
-                for k in [k for k, v in self.hits.items() if not v]:
-                    del self.hits[k]
-            if len(dq) >= self.limit:
-                return False
-            dq.append(now)
+
+def _ensure_schema() -> None:
+    global _schema_ready
+    if not _schema_ready:
+        q.get_driver().execute_query("CREATE CONSTRAINT ratelimit_key IF NOT EXISTS FOR (r:RateLimit) REQUIRE r.key IS UNIQUE")
+        _schema_ready = True
+
+
+def today() -> str:
+    return datetime.now(THAI_TZ).date().isoformat()
+
+
+def quota_key(ip: str, day: str) -> str:
+    return hmac.new(_SECRET, f"{ip}|{day}".encode(), hashlib.sha256).hexdigest()[:32]
+
+
+class DailyLimiter:
+    def __init__(self, limit: int):
+        self.limit = limit
+
+    def allow(self, ip: str) -> bool:
+        day = today()
+        key = quota_key(ip, day)
+        try:
+            _ensure_schema()
+            # the first SET takes the node's write lock, so concurrent requests count one after another
+            rec = q.get_driver().execute_query(
+                "MERGE (r:RateLimit {key: $key}) ON CREATE SET r.day = $day, r.n = 0 "
+                "SET r.day = $day WITH r WHERE r.n < $limit SET r.n = r.n + 1 RETURN r.n AS n",
+                key=key, day=day, limit=self.limit).records
+        except Exception:
+            log.exception("rate limit check failed; allowing the question")
             return True
+        return bool(rec)
 
 
-limiter = RateLimiter(RATE_LIMIT, RATE_WINDOW)
+limiter = DailyLimiter(RATE_LIMIT)
+
+
+def count_answer() -> None:
+    try:
+        q.get_driver().execute_query("MERGE (s:Stats {id: 'site'}) SET s.answered = coalesce(s.answered, 0) + 1")
+    except Exception:
+        log.exception("could not count the answer")
+
+
+def answered() -> int:
+    rec = q.get_driver().execute_query("MATCH (s:Stats {id: 'site'}) RETURN s.answered AS n").records
+    return int(rec[0]["n"] or 0) if rec else 0
+
+
+def forget_old_limits() -> None:
+    """Drop the counts of past days (run by the daily cron)."""
+    q.get_driver().execute_query("MATCH (r:RateLimit) WHERE r.day < $day DELETE r", day=today())
 
 
 # ---------- payloads ----------
@@ -116,6 +154,7 @@ def chat_events(question: str, history: list[dict]) -> Iterator[str]:
                 yield _sse("token", {"text": ev["text"]})
             elif ev["type"] == "final":
                 yield _sse("final", final_payload(ev["result"], ev["steps"]))
+                count_answer()
     except Exception:
         log.exception("chat failed")
         yield _sse("error", {"message": "เกิดข้อผิดพลาดระหว่างค้นคว้า กรุณาลองใหม่อีกครั้ง"})
@@ -157,9 +196,15 @@ def client_ip(request: Request) -> str:
 
 @app.get("/api/ping")
 def ping() -> dict:
-    """Touches the database, so a daily cron keeps a free AuraDB instance from being deleted."""
+    """Touches the database, so a daily cron keeps a free AuraDB instance from being deleted; clears old limits."""
     n = q.get_driver().execute_query("MATCH (v:Volume) RETURN count(v) AS n").records[0]["n"]
+    forget_old_limits()
     return {"ok": True, "volumes": n}
+
+
+@app.get("/api/stats")
+def stats() -> dict:
+    return {"answered": answered()}
 
 
 @app.get("/api/health")
@@ -235,7 +280,7 @@ def passage(key: str) -> dict:
 def chat(body: ChatIn, request: Request) -> StreamingResponse:
     ip = client_ip(request)
     if not limiter.allow(ip):
-        raise HTTPException(429, "ถามถี่เกินไป กรุณารอสักครู่แล้วลองใหม่")
+        raise HTTPException(429, f"วันนี้ถามครบ {RATE_LIMIT} คำถามแล้ว พรุ่งนี้มาถามต่อได้นะ")
     history = [t.model_dump() for t in body.history][-MAX_HISTORY_MESSAGES:]
     return StreamingResponse(
         chat_events(body.question.strip(), history),
