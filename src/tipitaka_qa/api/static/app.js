@@ -370,7 +370,7 @@ async function openToc(volume) {
   readerBody.scrollTop = 0;
 }
 
-// ---------- answered count (welcome) and today's quota (above the composer) ----------
+// ---------- answered count (welcome) and today's quota (under the ask button) ----------
 async function loadStats() {
   try {
     const { answered, remaining, limit } = await (await fetch("/api/stats")).json();
@@ -381,9 +381,7 @@ async function loadStats() {
     }
     const quota = $("#quota");
     if (typeof remaining === "number") {
-      quota.innerHTML = remaining > 0
-        ? `วันนี้เหลือ <b>${remaining}/${limit}</b> คำถาม`
-        : `วันนี้ถามครบ <b>${limit}/${limit}</b> แล้ว พรุ่งนี้ถามต่อได้`;
+      quota.innerHTML = remaining > 0 ? `เหลือ <b>${remaining}/${limit}</b>` : `ครบ <b>${limit}/${limit}</b> แล้ววันนี้`;
       quota.classList.toggle("out", remaining === 0);
       quota.hidden = false;
     }
