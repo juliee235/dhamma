@@ -26,7 +26,7 @@ from langchain_core.messages import (
 from langgraph.errors import GraphRecursionError
 
 from tipitaka_qa.agent.tools import TOOLS, scope_text
-from tipitaka_qa.llm import get_llm
+from tipitaka_qa.llm import get_llm, invoke_within
 from tipitaka_qa.verify.citations import VerifiedAnswer, parse_citations, refs_in_tool_outputs, verify
 
 log = logging.getLogger(__name__)
@@ -90,6 +90,7 @@ PLAN_PROMPT = ("แตกคำถามด้านล่างเป็นค�
                "คำถามกว้างให้ 3–5 คำค้น คำถามแคบหรือเจาะจงให้ 1–2 คำค้น "
                "ตอบเป็นบรรทัดละหนึ่งคำค้นเท่านั้น ไม่ต้องมีเลขลำดับหรือคำอธิบาย")
 SYNTH_MAX_CHARS = 60_000
+SYNTH_TIMEOUT = 120         # seconds for the no-tools final answer
 HISTORY_TURNS = 8          # follow-up context kept; each turn cut to HISTORY_CHARS
 HISTORY_CHARS = 4_000
 
@@ -128,7 +129,7 @@ def _synthesize(question: str, history: list[dict] | None, produced: list[BaseMe
     msgs = [SystemMessage(system_prompt()), *_history_messages(history),
             HumanMessage(f"{question}\n\n{OUT_OF_BUDGET}\n\n{digest}")]
     try:
-        return str(get_llm(temperature=0.1).invoke(msgs).text).strip()
+        return str(invoke_within(get_llm(temperature=0.1), msgs, SYNTH_TIMEOUT).text).strip()
     except Exception:
         log.exception("synthesis failed")
         return "ขออภัย ระบบเรียบเรียงคำตอบไม่สำเร็จ กรุณาถามใหม่อีกครั้ง"
@@ -190,7 +191,7 @@ def _revise(question: str, answer: str, idx: list[int], fetched: list[tuple[str,
     msg = f"คำถาม: {question}\n\n{REVISE}{notes}\n\n[บรรทัดที่ต้องตรวจ]\n{block}\n\n[ตัวบทจริง]\n{texts}"
     try:
         llm = get_llm(temperature=0.1, timeout=REVISE_TIMEOUT, max_retries=1)
-        out = str(llm.invoke([HumanMessage(msg)]).text)
+        out = str(invoke_within(llm, [HumanMessage(msg)], REVISE_TIMEOUT).text)
     except Exception:
         log.exception("revision failed; keeping the draft, unread citations get dropped")
         return answer
@@ -260,7 +261,7 @@ def plan_queries(question: str) -> list[str]:
     Failure only means the question is searched as typed."""
     try:
         llm = get_llm(temperature=0, timeout=30, max_retries=1)
-        text = str(llm.invoke([HumanMessage(f"{PLAN_PROMPT}\n\nคำถาม: {question}")]).text)
+        text = str(invoke_within(llm, [HumanMessage(f"{PLAN_PROMPT}\n\nคำถาม: {question}")], 30).text)
     except Exception:
         log.exception("query planning failed; searching the question only")
         return []
