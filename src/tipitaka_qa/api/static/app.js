@@ -6,12 +6,9 @@ const input = $("#q");
 const sendBtn = $("#send");
 
 const EXAMPLES = [
+  "โกรธง่าย ต้องทำยังไง",
   "สติปัฏฐาน ๔ มีอะไรบ้าง",
-  "ปัจฉิมวาจาของพระพุทธเจ้าคืออะไร ตรัสที่ไหน",
-  "มงคลสูตรกล่าวถึงมงคลอะไรบ้าง",
-  "ธรรมทายาทสูตรสอนอะไร",
-  "ปฏิจจสมุปบาทคืออะไร",
-  "เวรย่อมระงับด้วยอะไร ตามธรรมบท",
+  "เวรย่อมระงับด้วยอะไร",
 ];
 const STATUS_LABEL = {
   verified: "✅ อ่านตัวบทแล้ว",
@@ -389,29 +386,10 @@ async function loadStats() {
 }
 
 // ---------- welcome ----------
-async function initWelcome() {
+function initWelcome() {
   const ex = $("#examples");
   if (ex) ex.innerHTML = EXAMPLES.map((q) => `<button type="button" class="example" data-ask="${esc(q)}">${esc(q)}</button>`).join("");
   loadStats();
-  const list = $("#volume-list");
-  try {
-    const vols = await (await fetch("/api/volumes")).json();
-    const nos = vols.map((v) => v.no);
-    $("#scope").textContent = nos.length
-      ? `ข้อมูล: เล่ม ${nos[0]}${nos.length > 1 ? "–" + nos[nos.length - 1] : ""}` : "ยังไม่มีข้อมูล";
-    if (!list) return;
-    let lastNikaya = null;
-    list.innerHTML = vols.map((v) => {
-      const nik = v.nikaya || v.pitaka || "";
-      const head = nik !== lastNikaya ? `<h4 class="vol-group">${esc(nik)}</h4>` : "";
-      lastNikaya = nik;
-      const sub = v.nikaya ? v.title.replace(v.nikaya, "").trim() : v.title;
-      return `${head}<button type="button" class="sutta-card" data-toc="${v.no}">
-        <b>เล่ม ${v.no} · ${esc(sub)}</b><span>${v.units} หน่วย · ข้อ ${v.first_para}–${v.last_para}</span></button>`;
-    }).join("");
-  } catch {
-    if (list) list.innerHTML = '<p class="muted">โหลดรายชื่อเล่มไม่สำเร็จ</p>';
-  }
 }
 
 // ---------- events ----------
