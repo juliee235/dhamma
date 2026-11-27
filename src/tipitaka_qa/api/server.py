@@ -184,6 +184,16 @@ class ChatIn(BaseModel):
 
 app = FastAPI(title="Tipitaka QA", docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+
+@app.middleware("http")
+async def revalidate_pages(request: Request, call_next):
+    """The page and its scripts change together: make browsers check the ETag each load (a cheap 304) instead of
+    pairing a new index.html with a heuristically cached old app.js."""
+    response = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static/"):
+        response.headers.setdefault("Cache-Control", "no-cache")
+    return response
 # Drama videos live in public/videos: on Vercel the CDN serves public/ (a function can't return files that big);
 # locally this mount serves the same paths.
 VIDEOS = Path(__file__).resolve().parents[3] / "public" / "videos"

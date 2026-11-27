@@ -11,11 +11,17 @@ const EXAMPLES = [
   "เวรย่อมระงับด้วยอะไร",
 ];
 const STATUS_LABEL = {
-  verified: "✅ อ่านตัวบทแล้ว",
-  outline: "🔷 อ้างทั้งหมวด (ตรงกับโครงสร้าง)",
-  seen: "🟡 เห็นเพียงบางส่วน",
-  unread: "🟠 ไม่ได้เปิดอ่าน",
-  invalid: "❌ ไม่มีอยู่จริง",
+  verified: "อ่านตัวบทแล้ว",
+  outline: "อ้างทั้งหมวด (ตรงกับโครงสร้าง)",
+  seen: "เห็นเพียงบางส่วน",
+  unread: "ไม่ได้เปิดอ่าน",
+  invalid: "ไม่มีอยู่จริง",
+};
+// line icons (one set: 24 grid, 1.6 stroke, text colour)
+const ICON = {
+  soundOn: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
+  soundOff: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 6 6M22 9l-6 6"/></svg>',
+  book: '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5C10 5 7 4.5 3 5v13c4-.5 7 0 9 1.5 2-1.5 5-2 9-1.5V5c-4-.5-7 0-9 1.5zM12 6.5v13"/></svg>',
 };
 const state = { history: [], busy: false, cards: {} };
 const welcomeHTML = $("#welcome").outerHTML;
@@ -66,7 +72,7 @@ function scrollDown(force = false) {
 
 function chip(key, card) {
   const status = card ? card.status : "pending";
-  const title = card ? `${card.citation} · ${pathText(card)} · ${card.status_label}` : key;
+  const title = card ? `${card.citation} · ${pathText(card)} · ${STATUS_LABEL[card.status] || card.status_label}` : key;
   // "มหาสติปัฏฐานสูตร ข้อ 274" / "สุเมธกถา · พุทธวงศ์ ข้อ 5": always say which sutta it comes from
   const label = card ? citeLabel(card) : keyLabel(key);
   return `<button type="button" class="cite s-${status}" data-open="${esc(key)}" title="${esc(title)}">${esc(label)}</button>`;
@@ -169,7 +175,7 @@ function renderFinal(ui, d) {
     ui.sources.hidden = false;
     ui.sources.innerHTML = `<details><summary>แหล่งอ้างอิง (${keys.length}) — กดเพื่อดู</summary><ul>` + keys.map((k) => {
       const c = d.cards[k];
-      return `<li>${chip(k, c)}<span class="where">${esc(c.status_label)}<br><small>${esc(pathText(c))}</small></span></li>`;
+      return `<li>${chip(k, c)}<span class="where"><span class="status s-${esc(c.status)}">${esc(STATUS_LABEL[c.status] || c.status_label)}</span><br><small>${esc(pathText(c))}</small></span></li>`;
     }).join("") + "</ul></details>";
   }
   if (d.warnings.length) {
@@ -431,8 +437,8 @@ $("#new-chat").addEventListener("click", () => {
   input.focus();
 });
 
-// ---------- left tabs: chat / short dramas ----------
-const VIEWS = ["chat", "drama"];
+// ---------- left tabs: chat / short dramas / meditation timer ----------
+const VIEWS = ["chat", "drama", "timer"];
 function showView(name) {
   if (!VIEWS.includes(name)) name = "chat";
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== name;
@@ -494,24 +500,24 @@ function closeStory() {
 function reelHTML(d) {
   const media = d.video
     ? `<video class="reel-video" src="${esc(d.video)}"${d.poster ? ` poster="${esc(d.poster)}"` : ""} playsinline loop preload="metadata"></video>
-       <button type="button" class="reel-sound" aria-label="${soundOn ? "ปิดเสียง" : "เปิดเสียง"}">${soundOn ? "🔊" : "🔇"}</button>`
+       <button type="button" class="reel-sound" aria-label="${soundOn ? "ปิดเสียง" : "เปิดเสียง"}">${soundOn ? ICON.soundOn : ICON.soundOff}</button>`
     : `<div class="reel-placeholder"><span class="soon">ยังไม่มีวิดีโอ</span><p>${esc(d.summary)}</p></div>`;
   return `<article class="reel" aria-label="${esc(d.title)}"><div class="reel-frame">${media}
     <div class="reel-info">
       <h3>${esc(d.title)}</h3>${d.video ? `<p>${esc(d.summary)}</p>` : ""}
       <div class="reel-actions">
-        <button type="button" class="reel-btn" data-open="${esc(d.ref)}">📖 อ่านตัวบท · ${esc(d.source)}</button>
+        <button type="button" class="reel-btn" data-open="${esc(d.ref)}">${ICON.book}อ่านตัวบท · ${esc(d.source)}</button>
       </div>
     </div></div></article>`;
 }
 
 // sound is on by default; if the browser refuses to play with sound (no recent tap), the clip plays muted
-// and the speaker shows 🔇 so one tap turns it on
+// and the speaker shows as muted so one tap turns it on
 let soundOn = true;
 function syncSound() {
   document.querySelectorAll(".reel-video").forEach((v) => { v.muted = !soundOn; });
   document.querySelectorAll(".reel-sound").forEach((b) => {
-    b.textContent = soundOn ? "🔊" : "🔇";
+    b.innerHTML = soundOn ? ICON.soundOn : ICON.soundOff;
     b.setAttribute("aria-label", soundOn ? "ปิดเสียง" : "เปิดเสียง");
   });
 }
