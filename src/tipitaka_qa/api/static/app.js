@@ -447,6 +447,8 @@ function showView(name) {
   $("#new-chat").hidden = name !== "chat";
   if (name === "drama") { loadDramas(); if (!$("#drama-story").hidden) observeReels(); } else pauseReels();
   try { localStorage.setItem("view", name); } catch { /* storage unavailable */ }
+  const path = name === "chat" ? "/" : `/${name}`;   // each tab has its own address (server.py PAGES)
+  if (location.pathname !== path) history.replaceState(null, "", path + location.hash);
 }
 
 // the drama tab opens on a shelf of stories; choosing one opens its episodes as the vertical feed
@@ -598,6 +600,7 @@ $("#font-down").addEventListener("click", () => { sizeStep = applySize(sizeStep 
 $("#font-up").addEventListener("click", () => { sizeStep = applySize(sizeStep + 1, true); });
 
 initWelcome();
-let startView = "chat";
-try { startView = localStorage.getItem("view") || "chat"; } catch { /* ignore */ }
+// an address like /timer opens that tab; the bare site reopens the tab used last
+let startView = location.pathname.slice(1) || "chat";
+if (location.pathname === "/") try { startView = localStorage.getItem("view") || "chat"; } catch { /* ignore */ }
 showView(startView);

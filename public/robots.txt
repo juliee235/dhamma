@@ -1,0 +1,6 @@
+# Search engines and AI assistants are welcome to read and cite the site.
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://www.dhammamitima.com/sitemap.xml

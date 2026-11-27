@@ -11,6 +11,7 @@ Usage: uv run python -m tipitaka_qa.api.server   -> http://127.0.0.1:8000
 from __future__ import annotations
 
 import json
+from html import escape
 import logging
 import os
 import re
@@ -21,7 +22,7 @@ from pathlib import Path
 from typing import Iterator, Literal
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -201,9 +202,42 @@ if VIDEOS.is_dir():
     app.mount("/videos", StaticFiles(directory=VIDEOS), name="videos")
 
 
+SITE = "https://www.dhammamitima.com"
+# Each tab has its own address, title and description so search engines can list it on its own.
+PAGES = {
+    "/": ("พระไตรปิฎก AI · ถามตอบพระไตรปิฎกภาษาไทย พร้อมอ้างอิงตัวบท",
+          "ถามเรื่องธรรมะ พระสูตร และพระวินัย ได้คำตอบจากพระไตรปิฎกภาษาไทย พร้อมบอกเล่มและข้อที่มา "
+          "กดอ่านตัวบทต้นฉบับได้ทันที ใช้ฟรี ไม่แสวงหากำไร"),
+    "/timer": ("จับเวลาเดินจงกรมและนั่งสมาธิ · พระไตรปิฎก AI",
+               "นาฬิกาจับเวลาภาวนาฟรี ตั้งรอบเดินจงกรมและนั่งสมาธิได้ เช่น เดิน 20 นั่ง 20 หรือนั่งอย่างเดียว "
+               "มีเสียงระฆังและเสียงบอกเมื่อเปลี่ยนอิริยาบถ ใช้บนมือถือได้ ไม่ต้องติดตั้งแอป"),
+    "/drama": ("ละครสั้นจากพระไตรปิฎก · องคุลิมาล พระเทวทัต",
+               "ละครสั้นแนวตั้งเล่าเรื่องจากพระไตรปิฎกตามตัวบท เช่น องคุลิมาล และพระเทวทัต "
+               "แต่ละตอนบอกเล่มและข้อที่มา กดอ่านตัวบทต้นฉบับได้"),
+}
+PAGE_HTML = (STATIC / "index.html").read_text(encoding="utf-8")
+
+
+def page(path: str) -> HTMLResponse:
+    title, desc = PAGES[path]
+    html = (PAGE_HTML.replace("__TITLE__", escape(title)).replace("__DESC__", escape(desc))
+            .replace("__URL__", SITE + path))
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/")
-def index() -> FileResponse:
-    return FileResponse(STATIC / "index.html")
+def index() -> HTMLResponse:
+    return page("/")
+
+
+@app.get("/timer")
+def timer_page() -> HTMLResponse:
+    return page("/timer")
+
+
+@app.get("/drama")
+def drama_page() -> HTMLResponse:
+    return page("/drama")
 
 
 def client_ip(request: Request) -> str:
