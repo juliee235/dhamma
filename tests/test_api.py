@@ -206,3 +206,12 @@ def test_pages_render_whole():
         for block in re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S):
             json.loads(block)
     assert client.get("/drama/nope").status_code == 404
+
+
+def test_cache_and_security_headers():
+    """Versioned assets cache for a year; the page and unversioned files revalidate; every response is nosniff."""
+    v = client.get("/static/app.js?v=1")
+    assert "immutable" in v.headers["cache-control"] and v.headers["x-content-type-options"] == "nosniff"
+    for path in ("/", "/static/dramas.json"):
+        assert client.get(path).headers["cache-control"] == "no-cache", path
+    assert "immutable" not in client.get("/static/nope.js?v=1").headers.get("cache-control", "")

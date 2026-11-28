@@ -193,8 +193,15 @@ async def revalidate_pages(request: Request, call_next):
     """The page and its scripts change together: make browsers check the ETag each load (a cheap 304) instead of
     pairing a new index.html with a heuristically cached old app.js."""
     response = await call_next(request)
-    if request.url.path == "/" or request.url.path.startswith("/static/"):
+    if request.url.path.startswith("/static/") and "v" in request.query_params and response.status_code == 200:
+        # the page names each asset with ?v=N and bumps N when it changes, so this exact URL never changes;
+        # s-maxage lets Vercel's CDN answer it too (a deploy clears that cache)
+        response.headers["Cache-Control"] = "public, max-age=31536000, s-maxage=31536000, immutable"
+    elif request.url.path == "/" or request.url.path.startswith("/static/"):
         response.headers.setdefault("Cache-Control", "no-cache")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("X-Frame-Options", "DENY")
     return response
 # Drama videos live in public/videos: on Vercel the CDN serves public/ (a function can't return files that big);
 # locally this mount serves the same paths.
