@@ -211,7 +211,8 @@ if VIDEOS.is_dir():
 
 
 SITE = "https://www.dhammamitima.com"
-PUBLISHER = {"@type": "Organization", "name": "ธรรมะมีที่มา"}   # the Facebook page that runs the site
+FACEBOOK = "https://www.facebook.com/profile.php?id=61597051580905"   # the page that runs the site
+PUBLISHER = {"@type": "Organization", "name": "ธรรมะมีที่มา", "url": FACEBOOK, "sameAs": [FACEBOOK]}
 # Each tab has its own address, title and description so search engines can list it on its own.
 PAGES = {
     "/": ("พระไตรปิฎก AI · ถามตอบพระไตรปิฎกภาษาไทย พร้อมอ้างอิงตัวบท",
@@ -337,7 +338,7 @@ def episode_page(slug: str) -> HTMLResponse:
     return doc(ep_url(e), f"{title} · ละครสั้นจากพระไตรปิฎก", desc, body, data, "video.episode", poster)
 
 
-ABOUT_BODY = """    <h1>เกี่ยวกับพระไตรปิฎก AI</h1>
+ABOUT_BODY = f"""    <h1>เกี่ยวกับพระไตรปิฎก AI</h1>
     <p>เว็บนี้ให้ถามเรื่องในพระไตรปิฎกภาษาไทย แล้วตอบจากตัวบท ทุกคำตอบบอกเล่มและข้อที่มา และกดเปิดอ่านตัวบทต้นฉบับได้ในหน้าเดียวกัน
     จัดทำโดยเพจ ธรรมะมีที่มา เพื่อการศึกษา ไม่แสวงหากำไร ไม่มีโฆษณา</p>
     <h2>ตัวบทที่ใช้</h2>
@@ -365,8 +366,8 @@ ABOUT_BODY = """    <h1>เกี่ยวกับพระไตรปิฎ�
     <p><a href="/drama">ละครสั้นจากพระไตรปิฎก</a> เล่าเรื่องตามเนื้อความในตัวบท แต่ละตอนบอกเล่มและข้อที่มา
     ส่วน<a href="/timer">นาฬิกาจับเวลาเดินจงกรมและนั่งสมาธิ</a> ตั้งรอบเดินและนั่งได้ มีเสียงระฆังและเสียงบอกเมื่อเปลี่ยนอิริยาบถ</p>
     <h2>ผู้จัดทำและการแจ้งข้อผิดพลาด</h2>
-    <p>เว็บนี้จัดทำและดูแลโดยเพจ Facebook <b>ธรรมะมีที่มา</b> หากพบคำตอบที่ไม่ตรงกับตัวบท อ้างอิงผิด
-    หรือเนื้อหาในละครคลาดเคลื่อน แจ้งได้ทางข้อความของเพจ ธรรมะมีที่มา โปรดระบุคำถามหรือตอนที่พบด้วย</p>"""
+    <p>เว็บนี้จัดทำและดูแลโดยเพจ Facebook <a href="{FACEBOOK}" rel="noopener"><b>ธรรมะมีที่มา</b></a> หากพบคำตอบที่ไม่ตรงกับตัวบท อ้างอิงผิด
+    หรือเนื้อหาในละครคลาดเคลื่อน แจ้งได้ทาง<a href="{FACEBOOK}" rel="noopener">ข้อความของเพจ ธรรมะมีที่มา</a> โปรดระบุคำถามหรือตอนที่พบด้วย</p>"""
 
 
 @app.get("/about")
