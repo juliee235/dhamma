@@ -421,7 +421,7 @@
         <button type="button" class="kind ${s.k}" data-flip="${i}" aria-label="เปลี่ยนเป็น${KIND[s.k === "walk" ? "sit" : "walk"]}">${KIND[s.k]}</button>
         <span class="mins">
           <button type="button" class="step" data-dec="${i}" aria-label="ลด ${STEP} นาที" ${s.m <= MIN ? "disabled" : ""}>−</button>
-          <b>${s.m}</b> นาที
+          <b>${s.m}</b><span class="unit">นาที</span>
           <button type="button" class="step" data-inc="${i}" aria-label="เพิ่ม ${STEP} นาที" ${s.m >= MAX ? "disabled" : ""}>+</button>
         </span>
         <button type="button" class="drop" data-drop="${i}" aria-label="ลบช่วงนี้" ${plan.length < 2 ? "hidden" : ""}><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>

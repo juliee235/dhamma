@@ -527,7 +527,7 @@ button.cite { text-decoration: underline; text-underline-offset: 3px; }
 .t-setup-head p { margin: 2px 0 0; font-size: .85em; color: var(--muted); }
 .t-close { display: grid; place-items: center; width: 44px; height: 44px; margin: -6px 0 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); }
 .t-close:hover { background: var(--surface-2); color: var(--text); }
-.t-setup-body { flex: 1; min-height: 0; overflow-y: auto; display: grid; gap: 16px; padding: 4px 20px 16px; }
+.t-setup-body { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 4px 20px 16px; }   /* a wide row must not widen the sheet */
 .t-setup-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px 20px; border-top: 1px solid var(--border); }
 .t-setup-foot span { color: var(--muted); font-variant-numeric: tabular-nums; }
 .t-setup button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -542,7 +542,7 @@ button.cite { text-decoration: underline; text-underline-offset: 3px; }
 .preset:hover { border-color: var(--accent); }
 .preset[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 
-.t-edit ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.t-edit ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .t-edit .row { display: flex; align-items: center; gap: 8px; padding: 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .t-edit .kind {
   display: inline-flex; align-items: center; gap: 8px; min-height: 44px; width: 136px; padding: 0 14px;
@@ -570,13 +570,16 @@ button.cite { text-decoration: underline; text-underline-offset: 3px; }
   .t-clock { font-size: 3.4em; }
   .t-actions { gap: 8px; flex-wrap: nowrap; }
   .t-actions > button { flex: 1 1 0; min-width: 0; padding: 0 8px; white-space: nowrap; }
-  .t-edit .kind { width: 124px; padding: 0 10px; }
+  .t-edit .row, .t-edit .mins { gap: 6px; }
+  .t-edit .kind { flex: 1 1 0; width: auto; min-width: 0; padding: 0 10px; white-space: nowrap; overflow: hidden; }
   .t-presets { grid-template-columns: 1fr; }
   .preset { flex-direction: row; justify-content: space-between; align-items: baseline; }
-  .t-setup { width: 100%; max-width: 100%; margin: auto 0 0; border-width: 1px 0 0; border-radius: 20px 20px 0 0; max-height: 90vh; }
+  .t-setup { width: 100%; max-width: 100%; margin: auto 0 0; border-width: 1px 0 0; border-radius: 20px 20px 0 0; max-height: 90vh; max-height: 90dvh; }
   .t-setup-body { padding: 4px 16px 16px; }
   .t-setup-foot { padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }
 }
+@media (max-width: 400px) { .t-edit .unit { display: none; } }   /* the total below still says นาที */
+@media (max-width: 340px) { .t-edit .kind { font-size: .85em; padding: 0 8px; gap: 6px; } }
 @media (prefers-reduced-motion: reduce) {
   .lotus .petal, .lotus .ring, .seg-bar i, .preset { transition: none; }
   .lotus .ripples ellipse, .lotus .motes circle, .timer.running .lotus .flower { animation: none; }
