@@ -26,6 +26,7 @@ class Quota:
 @pytest.fixture(autouse=True)
 def _no_counting(monkeypatch):
     monkeypatch.setattr(server, "count_answer", lambda: None)   # tests must not touch the site's answer count
+    monkeypatch.setattr(server, "site_budget", Quota(1000))       # nor the site-wide daily budget
 
 
 def _events(text: str) -> list[tuple[str, dict]]:
@@ -98,6 +99,31 @@ def test_chat_validation_and_rate_limit(monkeypatch):
     assert client.post("/api/chat", json={"question": "c"}).status_code == 429
 
 
+def test_site_budget_and_failing_quota(monkeypatch):
+    monkeypatch.setattr("tipitaka_qa.agent.core.stream_ask", lambda q, h: iter(()))
+    monkeypatch.setattr(server, "limiter", Quota(100))
+    monkeypatch.setattr(server, "site_budget", Quota(1))
+    assert client.post("/api/chat", json={"question": "a"}).status_code == 200
+    r = client.post("/api/chat", json={"question": "b"})                 # everyone's share is used up
+    assert r.status_code == 429 and "เว็บรับได้" in r.json()["detail"]
+
+    class Broken:
+        def allow(self, ip):
+            raise RuntimeError("database down")
+    monkeypatch.setattr(server, "limiter", Broken())
+    assert client.post("/api/chat", json={"question": "c"}).status_code == 503   # refuse, never ask uncounted
+
+
+def test_ipv6_counts_per_network():
+    from starlette.requests import Request
+
+    def req(ip):
+        return Request({"type": "http", "headers": [(b"x-forwarded-for", ip.encode())], "client": None})
+    assert server.client_ip(req("2001:db8:1:2:aaaa::1")) == server.client_ip(req("2001:db8:1:2:bbbb::9"))
+    assert server.client_ip(req("2001:db8:1:2::1")) != server.client_ip(req("2001:db8:1:3::1"))
+    assert server.client_ip(req("203.0.113.7, 10.0.0.1")) == "203.0.113.7"
+
+
 from tests.test_graph import _graph_ready  # noqa: E402
 
 graph = pytest.mark.skipif(not _graph_ready(), reason="Neo4j not running or volume 10 not loaded (v2)")
@@ -164,3 +190,19 @@ def test_daily_limit_and_counter_in_the_database(monkeypatch):
     monkeypatch.setattr(server, "limiter", Quota(7))
     st = client.get("/api/stats").json()
     assert isinstance(st["answered"], int) and st["remaining"] == 7 and st["limit"] == server.RATE_LIMIT
+
+
+def test_pages_render_whole():
+    """Every page the sitemap lists comes back filled in: no template placeholder left, one h1, valid JSON-LD."""
+    import re
+    sm = client.get("/sitemap.xml")
+    assert sm.status_code == 200 and sm.headers["content-type"].startswith("application/xml")
+    paths = [u.removeprefix(server.SITE) or "/" for u in re.findall(r"<loc>([^<]+)</loc>", sm.text)]
+    assert {"/", "/timer", "/drama", "/about", "/drama/angulimala-1"} <= set(paths)
+    for path in paths:
+        html = client.get(path).text
+        assert not re.search(r"__[A-Za-z_]+__|<!--(PAGE_JSONLD|DRAMA_ABOUT)-->", html), path
+        assert len(re.findall(r"<h1[ >]", html)) == 1, path
+        for block in re.findall(r'<script type="application/ld\+json">(.*?)</script>', html, re.S):
+            json.loads(block)
+    assert client.get("/drama/nope").status_code == 404

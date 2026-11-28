@@ -445,6 +445,7 @@ function showView(name) {
   document.querySelectorAll("[data-view]").forEach((b) =>
     b.setAttribute("aria-current", b.dataset.view === name ? "page" : "false"));
   $("#new-chat").hidden = name !== "chat";
+  document.body.dataset.tab = name;
   if (name === "drama") { loadDramas(); if (!$("#drama-story").hidden) observeReels(); } else pauseReels();
   try { localStorage.setItem("view", name); } catch { /* storage unavailable */ }
   const path = name === "chat" ? "/" : `/${name}`;   // each tab has its own address (server.py PAGES)
@@ -455,14 +456,19 @@ function showView(name) {
 let dramas = null;
 async function loadDramas() {
   if (dramas) return;
-  const shelf = $("#drama-list");
   try {
     dramas = await (await fetch("/static/dramas.json")).json();
-    shelf.innerHTML = dramas.length ? dramas.map(storyHTML).join("") : '<p class="drama-note">ยังไม่มีละคร</p>';
+    shelfFill(dramas.length ? dramas.map(storyHTML).join("") : '<p class="drama-note">ยังไม่มีละคร</p>');
   } catch {
     dramas = null;
-    shelf.innerHTML = '<p class="drama-note">โหลดละครไม่สำเร็จ ลองกดแท็บอีกครั้ง</p>';
+    shelfFill('<p class="drama-note">โหลดละครไม่สำเร็จ ลองกดแท็บอีกครั้ง</p>');
   }
+}
+// the server-rendered heading and story list stay; the covers go between them
+function shelfFill(html) {
+  const shelf = $("#drama-list");
+  shelf.querySelectorAll(".story, .drama-note").forEach((n) => n.remove());
+  shelf.querySelector(".drama-title").insertAdjacentHTML("afterend", html);
 }
 
 const thaiNum = (n) => String(n).replace(/\d/g, (d) => "๐๑๒๓๔๕๖๗๘๙"[d]);
@@ -568,7 +574,7 @@ document.addEventListener("pause", (e) => {
 
 document.addEventListener("click", (e) => {
   const tab = e.target.closest("[data-view]");
-  if (tab) { showView(tab.dataset.view); return; }
+  if (tab) { e.preventDefault(); showView(tab.dataset.view); return; }   // links for crawlers, a tab switch for people
   const story = e.target.closest("[data-story]");
   if (story) { openStory(+story.dataset.story); return; }
   if (e.target.closest("#drama-back")) { closeStory(); return; }
@@ -604,3 +610,6 @@ initWelcome();
 let startView = location.pathname.slice(1) || "chat";
 if (location.pathname === "/") try { startView = localStorage.getItem("view") || "chat"; } catch { /* ignore */ }
 showView(startView);
+// a link like /?read=13:521-525 (from an episode page) opens that passage in the reader
+const readKey = new URLSearchParams(location.search).get("read");
+if (readKey && /^\d{1,2}:\d{1,5}(-\d{1,5})?$/.test(readKey)) openReader(readKey);

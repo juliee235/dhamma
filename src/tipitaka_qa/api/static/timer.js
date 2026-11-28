@@ -71,6 +71,41 @@
     </g>
     <g class="motes">${MOTES.map(([x, y, r, d, dl]) => `<circle cx="${x}" cy="${y}" r="${r}" style="animation-duration:${d}s;animation-delay:${-dl}s"/>`).join("")}</g>`;
   const petals = [...view.querySelectorAll(".petal")];
+
+  // ---------- the page around the lotus: dawn (night in dark mode) over a still pond, edge to edge ----------
+  // drawn once; colours come from CSS variables so the theme switch repaints it. Gradients #t-pad, #pg-* are the lotus's.
+  const bud = (x, y, s, lean) => `<g transform="translate(${x} ${y}) rotate(${lean}) scale(${s})">` +
+    `<path class="bd-stem" d="M0 0c-2 18 2 34 0 52"/>` +
+    [[-16, "back"], [16, "back"], [-6, "front"], [6, "front"], [0, "front"]].map(([a, c]) =>
+      `<path class="bd-petal ${c}" d="${petal(64, 22)}" transform="rotate(${a})"/>`).join("") + "</g>";
+  const SHIMMER = [[150, 506, 160], [520, 516, 120], [930, 510, 190], [1240, 522, 110], [300, 560, 220], [760, 574, 150],
+    [1100, 590, 240], [90, 650, 180], [600, 676, 260], [1010, 700, 170], [360, 760, 200], [1250, 790, 150]];
+  const STARS = [[90, 70, 1.4], [240, 160, 1], [410, 60, 1.2], [560, 190, .9], [700, 90, 1.5], [880, 150, 1], [1010, 60, 1.2],
+    [1180, 180, .9], [1330, 90, 1.4], [150, 300, .8], [1270, 320, .9], [330, 360, .7], [1120, 380, .8]];
+  const DRIFT = [[180, 430, 2, 16, 0], [330, 380, 1.6, 19, 6], [470, 460, 2.2, 15, 3], [980, 440, 1.8, 17, 9], [1110, 400, 2, 21, 2],
+    [1270, 470, 1.6, 18, 12], [620, 490, 1.4, 20, 7], [820, 500, 1.8, 16, 14], [60, 500, 1.5, 22, 4], [1390, 430, 1.7, 19, 10]];
+  // a corner of the pond: lily pads and two buds; the right corner is the same drawing mirrored
+  const corner = `<svg class="bd-corner" viewBox="0 0 440 300" preserveAspectRatio="xMinYMax meet">
+      ${pad(150, 235, 120, 20)}${pad(335, 285, 80, 150)}${pad(58, 130, 60, 80)}${pad(258, 110, 34, 200)}
+      ${bud(190, 205, .9, -8)}${bud(66, 100, .5, -6)}</svg>`;
+  document.querySelector(".t-backdrop").innerHTML = `
+    <svg class="bd-scene" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMax slice">
+      <defs>
+        <linearGradient id="bd-sky" x1="0" y1="0" x2="0" y2="1"><stop class="bd-s0" offset="0"/><stop class="bd-s1" offset=".55"/><stop class="bd-s2" offset="1"/></linearGradient>
+        <radialGradient id="bd-glow"><stop class="bd-g0" offset="0"/><stop class="bd-g1" offset="1"/></radialGradient>
+        <linearGradient id="bd-water" x1="0" y1="0" x2="0" y2="1"><stop class="bd-w0" offset="0"/><stop class="bd-w1" offset="1"/></linearGradient>
+      </defs>
+      <rect width="1440" height="500" fill="url(#bd-sky)"/>
+      <g class="bd-stars">${STARS.map(([x, y, r], i) => `<circle cx="${x}" cy="${y}" r="${r}" style="animation-delay:${-i * .7}s"/>`).join("")}</g>
+      <circle cx="720" cy="470" r="460" fill="url(#bd-glow)"/>
+      <path class="bd-hill far" d="M0 440C160 400 300 420 450 436S700 400 860 416 1150 380 1440 432V500H0Z"/>
+      <path class="bd-hill near" d="M0 480C120 456 260 464 380 476S560 480 640 486 1000 476 1120 468 1340 460 1440 478V500H0Z"/>
+      <rect y="494" width="1440" height="406" fill="url(#bd-water)"/>
+      <ellipse class="bd-sheen" cx="720" cy="512" rx="320" ry="14"/>
+      <g class="bd-shimmer">${SHIMMER.map(([x, y, w], i) => `<path d="M${x} ${y}h${w}" style="animation-delay:${-i * 1.3}s"/>`).join("")}</g>
+      <g class="bd-drift">${DRIFT.map(([x, y, r, d, dl]) => `<circle cx="${x}" cy="${y}" r="${r}" style="animation-duration:${d}s;animation-delay:${-dl}s"/>`).join("")}</g>
+    </svg>
+    ${corner}${corner.replace('class="bd-corner"', 'class="bd-corner right"')}`;
   const ring = $(".ring", view);
 
   function drawLotus(open, segFrac) {
@@ -148,7 +183,7 @@
     if (now >= run.end) {
       // past one or more changes (a background tab may wake late): ring once, land in the right segment
       while (run && now >= run.end) {
-        run.done += segMs(run.idx);
+        credit(segMs(run.idx));
         if (run.idx + 1 >= plan.length) { finish(); return; }
         run.idx += 1; run.end += segMs(run.idx);
       }
@@ -159,7 +194,7 @@
 
   function start() {
     if (finished) { finished = false; }
-    if (!run) { run = { idx: 0, end: Date.now() + segMs(0), paused: false, done: 0 }; bell(1); loadVoices(); }
+    if (!run) { run = { idx: 0, end: Date.now() + segMs(0), paused: false, done: 0, by: { walk: 0, sit: 0 } }; bell(1); loadVoices(); }
     else if (run.paused) { run.end = Date.now() + run.left; run.paused = false; }
     clearInterval(ticker); ticker = setInterval(tick, 500);
     keepAwake(true);
@@ -171,15 +206,20 @@
     clearInterval(ticker); keepAwake(false);
     render();
   }
+  // ms practised so far, in total and per posture (for the journal)
+  function credit(ms) { run.done += ms; run.by[plan[run.idx].k] += ms; }
   function stop() {
+    let entry = null;
+    if (run) { credit(segMs(run.idx) - leftMs()); entry = record(run); }   // ended early: still a sitting worth noting
     run = null; finished = false;
     clearInterval(ticker); keepAwake(false);
     render();
+    if (entry) showNote(entry);
   }
   // end the current segment early: on to the next one, or the session's end after the last
   function skip() {
     if (!run) return;
-    run.done += segMs(run.idx) - leftMs();
+    credit(segMs(run.idx) - leftMs());
     if (run.idx + 1 >= plan.length) { finish(); return; }
     run.idx += 1; run.end = Date.now() + segMs(run.idx); run.paused = false;
     clearInterval(ticker); ticker = setInterval(tick, 500);
@@ -189,10 +229,12 @@
   }
   function finish() {
     practiced = run.done;
+    const entry = record(run);
     run = null; finished = true;
     clearInterval(ticker); keepAwake(false);
     bell(1); say("end", VOICE_AT); bell(2, VOICE_AT + 4);
     render();
+    if (entry) showNoteLater(entry);
   }
 
   // ---------- drawing ----------
@@ -200,6 +242,9 @@
     phase: $("#t-phase"), clock: $("#t-clock"), next: $("#t-next"), plan: $("#t-plan"),
     presets: $("#t-presets"), edit: $("#t-edit"), go: $("#t-go"), stop: $("#t-stop"), skip: $("#t-skip"), tab: $('[data-view="timer"]'),
     setup: $("#t-setup"), open: $("#t-open"), begin: $("#t-begin"), total: $("#t-total"),
+    note: $("#t-note"), noteMeta: $("#t-note-meta"), noteText: $("#t-note-text"), noteStatus: $("#t-note-status"),
+    noteSave: $("#t-note-save"), journal: $("#t-journal"), journalOpen: $("#t-journal-open"), cal: $("#t-cal"), day: $("#t-day"),
+    month: $("#t-month-name"), sum: $("#t-log-sum"), importFile: $("#t-import"),
   };
   els.presets.innerHTML = PRESETS.map((p, i) =>
     `<button type="button" class="preset" data-preset="${i}"><span>${PRESET_NAME[i]}</span>` +
@@ -208,7 +253,7 @@
   function render() {
     const editing = !run;
     els.stop.hidden = els.skip.hidden = !run;
-    els.open.hidden = !!run;
+    els.open.hidden = els.journalOpen.hidden = !!run;
     els.go.textContent = !run ? (finished ? "เริ่มอีกครั้ง" : "เริ่ม") : run.paused ? "ทำต่อ" : "พัก";
     els.tab?.classList.toggle("live", !!run && !run.paused);
     view.classList.toggle("running", !!run && !run.paused);
@@ -244,6 +289,128 @@
     drawLotus(done / totalMs(), segFrac);
 
     if (editing) renderEditor();
+    if (!run) renderLog();
+  }
+
+  // ---------- the practice journal: kept in this browser only, no account ----------
+  // entry: { at: end time (epoch ms), min, walk, sit (minutes), note }
+  const LOG_KEY = "timerLog";
+  const valid = (e) => e && Number.isFinite(e.at) && Number.isFinite(e.min) && typeof (e.note ?? "") === "string";
+  let log = [];
+  try { const v = JSON.parse(localStorage.getItem(LOG_KEY)); if (Array.isArray(v)) log = v.filter(valid); } catch { /* none yet */ }
+  const saveLog = () => { try { localStorage.setItem(LOG_KEY, JSON.stringify(log)); return true; } catch { return false; } };
+  let noteFor = null;                                  // the entry the note card is editing
+  const now0 = new Date();
+  let cal = { y: now0.getFullYear(), m: now0.getMonth() }, picked = null;   // month shown, day opened
+  const two = (n) => String(n).padStart(2, "0");
+  const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`; };
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const timeOf = (t) => new Date(t).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) + " น.";
+  const minutesText = (e) => `${e.min} นาที` + (e.walk && e.sit ? ` (เดิน ${e.walk} · นั่ง ${e.sit})` : e.walk ? " (เดินจงกรม)" : " (นั่งสมาธิ)");
+
+  function record(r) {
+    const min = Math.round(r.done / MS);
+    if (min < 1) return null;                          // a mis-tap, not a sitting
+    const e = { at: Date.now(), min, walk: Math.round(r.by.walk / MS), sit: Math.round(r.by.sit / MS), note: "" };
+    log.push(e); saveLog();
+    return e;
+  }
+
+  function showNote(e) {
+    noteFor = e;
+    const d = new Date(e.at);
+    cal = { y: d.getFullYear(), m: d.getMonth() }; picked = dayKey(e.at);
+    els.noteMeta.textContent = `${d.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" })} ${timeOf(e.at)} · ${minutesText(e)}`;
+    els.noteText.value = e.note || "";
+    els.noteStatus.textContent = "";
+    if (!els.note.open) els.note.showModal();
+    renderLog();
+  }
+  // after the last bell, the lotus stays in full bloom a moment before the note opens
+  const showNoteLater = (e) => setTimeout(() => { if (!run) showNote(e); }, 3200);
+
+  function streak() {                                  // days in a row with practice, ending today or yesterday
+    const days = new Set(log.map((e) => dayKey(e.at)));
+    const d = new Date();
+    if (!days.has(dayKey(d))) d.setDate(d.getDate() - 1);
+    let n = 0;
+    while (days.has(dayKey(d))) { n += 1; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+
+  function renderLog() {
+    const { y, m } = cal;
+    els.month.textContent = new Date(y, m, 1).toLocaleDateString("th-TH", { month: "long", year: "numeric" });
+    const byDay = {};
+    for (const e of log) (byDay[dayKey(e.at)] ||= []).push(e);
+    const inMonth = Object.keys(byDay).filter((k) => k.startsWith(`${y}-${two(m + 1)}-`));
+    const mins = inMonth.reduce((s, k) => s + byDay[k].reduce((t, e) => t + e.min, 0), 0);
+    const inRow = streak();
+    els.sum.textContent = inMonth.length
+      ? `ภาวนา ${inMonth.length} วัน รวม ${mins} นาที` + (inRow >= 2 ? ` · ต่อเนื่อง ${inRow} วัน` : "")
+      : "เดือนนี้ยังไม่มีบันทึก ภาวนาจบแล้ววันนั้นจะมีจุดบนปฏิทิน";
+
+    const first = new Date(y, m, 1).getDay(), last = new Date(y, m + 1, 0).getDate(), today = dayKey(Date.now());
+    let cells = "<span></span>".repeat(first);
+    for (let d = 1; d <= last; d++) {
+      const k = `${y}-${two(m + 1)}-${two(d)}`, es = byDay[k], cls = k === today ? " today" : "";
+      if (!es) { cells += `<span class="cal-day${cls}">${d}</span>`; continue; }
+      const total = es.reduce((t, e) => t + e.min, 0), lvl = total >= 60 ? 3 : total >= 30 ? 2 : 1;
+      cells += `<button type="button" class="cal-day has lv${lvl}${cls}" data-day="${k}" aria-pressed="${k === picked}" ` +
+        `aria-label="วันที่ ${d} ภาวนา ${total} นาที">${d}</button>`;
+    }
+    els.cal.innerHTML = cells;
+
+    const es = picked && byDay[picked];
+    els.day.innerHTML = !es ? "" : `<ul>${es.map((e) => `<li>
+        <div class="day-head"><b>${timeOf(e.at)}</b> · ${minutesText(e)}</div>
+        ${e.note ? `<p class="day-note">${esc(e.note)}</p>` : '<p class="day-note muted">ไม่มีบันทึก</p>'}
+        <div class="day-actions"><button type="button" class="linkish" data-edit="${e.at}">${e.note ? "แก้บันทึก" : "เขียนบันทึก"}</button>
+        <button type="button" class="linkish danger" data-del="${e.at}">ลบ</button></div></li>`).join("")}</ul>`;
+  }
+
+  function exportLog() {
+    const blob = new Blob([JSON.stringify(log, null, 1)], { type: "application/json" });
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `บันทึกภาวนา-${dayKey(Date.now())}.json` });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  els.importFile.addEventListener("change", async () => {
+    const f = els.importFile.files[0];
+    els.importFile.value = "";
+    if (!f) return;
+    try {
+      const incoming = JSON.parse(await f.text());
+      if (!Array.isArray(incoming)) throw new Error("not a list");
+      const have = new Set(log.map((e) => e.at));
+      const add = incoming.filter((e) => valid(e) && !have.has(e.at))
+        .map((e) => ({ at: e.at, min: e.min, walk: +e.walk || 0, sit: +e.sit || 0, note: String(e.note || "").slice(0, 2000) }));
+      log.push(...add); log.sort((a, b) => a.at - b.at); saveLog();
+      els.sum.textContent = `นำเข้า ${add.length} รายการ`;
+      setTimeout(renderLog, 1800);
+    } catch { els.sum.textContent = "ไฟล์นี้ไม่ใช่บันทึกภาวนา"; }
+  });
+
+  function journalClick(t) {
+    const d = t.dataset;
+    if (t === els.noteSave) {
+      if (!noteFor) return true;
+      noteFor.note = els.noteText.value.trim();
+      if (saveLog()) { els.note.close(); renderLog(); }
+      else els.noteStatus.textContent = "บันทึกไม่ได้ (เบราว์เซอร์ไม่ยอมให้เก็บข้อมูล)";
+    } else if (t === els.journalOpen) { picked = null; renderLog(); els.journal.showModal(); }
+    else if (d.month !== undefined) { const x = new Date(cal.y, cal.m + +d.month, 1); cal = { y: x.getFullYear(), m: x.getMonth() }; picked = null; renderLog(); }
+    else if (d.day !== undefined) { picked = picked === d.day ? null : d.day; renderLog(); }
+    else if (d.edit !== undefined) { const e = log.find((x) => x.at === +d.edit); if (e) showNote(e); }
+    else if (d.del !== undefined) {
+      if (t.dataset.armed !== "1") { t.dataset.armed = "1"; t.textContent = "กดอีกครั้งเพื่อลบ"; return true; }   // no browser confirm()
+      log = log.filter((x) => x.at !== +d.del); saveLog();
+      if (noteFor && noteFor.at === +d.del) { noteFor = null; if (els.note.open) els.note.close(); }
+      renderLog();
+    } else if (d.export !== undefined) exportLog();
+    else if (d.import !== undefined) els.importFile.click();
+    else return false;
+    return true;
   }
 
   function renderEditor() {
@@ -265,7 +432,8 @@
 
   // the plan is set in a dialog that greets every visit to the tab while no session runs
   const openSetup = () => { if (!run && !els.setup.open) { renderEditor(); els.setup.showModal(); } };
-  els.setup.addEventListener("click", (e) => { if (e.target === els.setup) els.setup.close(); });   // backdrop
+  for (const dlg of [els.setup, els.note, els.journal])   // a tap on the backdrop closes the dialog
+    dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
   new MutationObserver(() => { if (!view.hidden) openSetup(); }).observe(view, { attributes: true, attributeFilter: ["hidden"] });
 
   view.addEventListener("click", (e) => {
@@ -276,7 +444,8 @@
     if (t === els.skip) { skip(); return; }
     if (t === els.open) { openSetup(); return; }
     if (t === els.begin) { els.setup.close(); start(); return; }
-    if (t.dataset.close !== undefined) { els.setup.close(); return; }
+    if (t.dataset.close !== undefined) { t.closest("dialog")?.close(); return; }
+    if (journalClick(t)) return;
     if (run) return;   // the plan is fixed while a session runs
     const d = t.dataset;
     if (d.preset !== undefined) plan = toPlan(PRESETS[+d.preset]);

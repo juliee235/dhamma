@@ -59,7 +59,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--surface);
 }
 .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.brand h1 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.3; }
+a.brand { color: inherit; text-decoration: none; }
+.brand .brand-name { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.3; }
 .topbar-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
 /* ---------- layout ---------- */
@@ -69,7 +70,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .messages > * { max-width: 820px; margin-left: auto; margin-right: auto; }
 
 /* ---------- welcome ---------- */
-.welcome h2 { font-size: 22px; margin: 8px 0 6px; }
+.welcome :is(h1, h2) { font-size: 22px; margin: 8px 0 6px; }
 .welcome p { margin: 0; color: var(--muted); }
 .welcome-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 8px 0 6px; }
 .welcome-head h2 { margin: 0; }
@@ -227,11 +228,11 @@ button.cite:hover { border-color: currentColor; }
 :root { --fs: 17px; --muted: #4f473d; --border: #cfc4b2; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --muted: #c9bfae; --border: #4a4236; } }
 body { font-size: var(--fs); line-height: 1.85; }
-.brand h1 { font-size: 1.15em; }
+.brand .brand-name { font-size: 1.15em; }
 .disclaimer, .meta, .crumbs, .steps, .sources h4, .warnings { font-size: 0.8em; }
 .font-size { display: flex; gap: 4px; }
 .font-size button, #new-chat { font-size: 0.85em; padding: 4px 14px; min-height: 40px; font-weight: 600; }
-.welcome h2 { font-size: 1.35em; }
+.welcome :is(h1, h2) { font-size: 1.35em; }
 .example { font-size: 0.85em; padding: 10px 18px; }
 .composer textarea { font-size: 1em; padding: 14px 16px; border-width: 2px; min-height: 64px; }
 #send { font-size: 1em; padding: 14px 30px; min-height: 64px; }
@@ -269,14 +270,14 @@ button.cite { text-decoration: underline; text-underline-offset: 3px; }
   width: 96px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px;
   padding: 12px 8px; border-right: 1px solid var(--border); background: var(--surface);
 }
-.sidenav button {
+.sidenav a {
   display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 72px;
   padding: 10px 4px; border: 0; border-radius: 12px; background: transparent;
-  font-size: 0.72em; font-weight: 600; color: var(--muted); line-height: 1.3;
+  font-size: 0.72em; font-weight: 600; color: var(--muted); line-height: 1.3; text-decoration: none;
 }
-.sidenav button:hover { background: var(--surface-2); }
-.sidenav button[aria-current="page"] { background: var(--surface-2); color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
-.sidenav button:focus-visible, .reel-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sidenav a:hover { background: var(--surface-2); }
+.sidenav a[aria-current="page"] { background: var(--surface-2); color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.sidenav a:focus-visible, .reel-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* vertical feed: one 9:16 clip per screen, snap scrolling like Reels/TikTok */
 .drama { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #0f0d0b; }
@@ -347,8 +348,8 @@ button.cite { text-decoration: underline; text-underline-offset: 3px; }
     order: 2; width: auto; flex-direction: row; gap: 4px; border-right: 0; border-top: 1px solid var(--border);
     padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px));
   }
-  .sidenav button { flex: 1; flex-direction: row; justify-content: center; gap: 8px; min-height: 52px; font-size: 0.8em; }
-  .sidenav button[aria-current="page"] { box-shadow: inset 0 3px 0 var(--accent); }
+  .sidenav a { flex: 1; flex-direction: row; justify-content: center; gap: 8px; min-height: 52px; font-size: 0.8em; }
+  .sidenav a[aria-current="page"] { box-shadow: inset 0 3px 0 var(--accent); }
   .chat, .drama { min-height: 0; }
   .reel { padding: 0; }
   .reel-frame { width: 100%; aspect-ratio: auto; border-radius: 0; }
@@ -359,7 +360,7 @@ button.cite { text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 600px) {
   .topbar { padding: 6px 12px; gap: 8px; }
   .brand { gap: 8px; }
-  .brand h1 { font-size: 1em; white-space: nowrap; }
+  .brand .brand-name { font-size: 1em; white-space: nowrap; }
   .topbar-actions { gap: 6px; }
   .font-size button, #new-chat { min-height: 38px; padding: 2px 10px; font-size: 0.75em; }
   .messages { padding: 12px 14px 8px; }
@@ -371,28 +372,28 @@ button.cite { text-decoration: underline; text-underline-offset: 3px; }
   #send { min-height: 50px; padding: 8px 18px; }
   .disclaimer { margin: 0 auto 6px; padding: 0 12px; font-size: 12px !important; line-height: 1.4; }
   .disc-full { display: none; }
-  .welcome h2 { font-size: 1.2em; }
-  .sidenav button { min-height: 46px; }
+  .welcome :is(h1, h2) { font-size: 1.2em; }
+  .sidenav a { min-height: 46px; }
 }
 
 /* ================= minimal: quiet chrome, the question first ================= */
 .topbar { background: var(--bg); border-bottom-color: transparent; padding: 10px 20px; }
 .brand { gap: 10px; }
 .brand .mark { width: 26px; height: 26px; flex: none; fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; }
-.brand h1 { font-weight: 600; letter-spacing: .01em; }
+.brand .brand-name { font-weight: 600; letter-spacing: .01em; }
 .topbar-actions .ghost { border-color: transparent; color: var(--muted); }
 .topbar-actions .ghost:hover { color: var(--text); background: var(--surface-2); }
 .topbar-actions .ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sidenav { background: var(--bg); border-right-color: transparent; width: 84px; }
 .sidenav .ico { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; }
-.sidenav button[aria-current="page"] { box-shadow: none; }
+.sidenav a[aria-current="page"] { box-shadow: none; }
 
 /* the welcome sits in the middle of the empty chat: a heading, one line, three questions */
 .messages { display: flex; flex-direction: column; }
 .messages > * { width: 100%; flex: none; }
 .messages > .welcome { margin: auto; }
 .welcome { text-align: center; padding: 24px 0; }
-.welcome h2 { font-size: 1.5em; font-weight: 600; margin: 0 0 6px; }
+.welcome :is(h1, h2) { font-size: 1.5em; font-weight: 600; margin: 0 0 6px; }
 .welcome p { margin: 0 0 22px; }
 .welcome .examples { justify-content: center; }
 .example { background: transparent; color: var(--text); transition: border-color .16s var(--ease), color .16s var(--ease); }
@@ -408,7 +409,7 @@ button.cite { text-decoration: underline; text-underline-offset: 3px; }
 }
 @media (max-width: 600px) {
   .brand .mark { width: 22px; height: 22px; }
-  .welcome h2 { font-size: 1.25em; }
+  .welcome :is(h1, h2) { font-size: 1.25em; }
   .welcome p { margin-bottom: 18px; }
 }
 
@@ -561,9 +562,9 @@ button.cite { text-decoration: underline; text-underline-offset: 3px; }
 .timer button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* a session running in the background: a small dot on its tab */
-.sidenav button { position: relative; }
-.sidenav button.live::after { content: ""; position: absolute; top: 10px; right: 20px; width: 8px; height: 8px; border-radius: 50%; background: var(--sit, #c9707e); }
-@media (max-width: 900px) { .sidenav button.live::after { top: 8px; right: auto; left: calc(50% + 28px); } }
+.sidenav a { position: relative; }
+.sidenav a.live::after { content: ""; position: absolute; top: 10px; right: 20px; width: 8px; height: 8px; border-radius: 50%; background: var(--sit, #c9707e); }
+@media (max-width: 900px) { .sidenav a.live::after { top: 8px; right: auto; left: calc(50% + 28px); } }
 @media (max-width: 600px) {
   .timer-inner { padding: 8px 16px 32px; gap: 20px; }
   .t-clock { font-size: 3.4em; }
@@ -581,4 +582,171 @@ button.cite { text-decoration: underline; text-underline-offset: 3px; }
   .lotus .ripples ellipse, .lotus .motes circle, .timer.running .lotus .flower { animation: none; }
   .lotus .motes { display: none; }
   .t-setup[open] { animation: none; }
+}
+
+/* ================= page headings and plain-text sections (also what crawlers read) ================= */
+.t-title { margin: 0; text-align: center; font: 500 1em/1.5 var(--serif); color: var(--muted); letter-spacing: .02em; }
+.t-guide { margin-top: 8px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: .92em; line-height: 1.75; }
+.t-guide h2 { margin: 0 0 8px; font: 500 1.1em/1.5 var(--serif); color: var(--text); }
+.t-guide h2 + * { margin-top: 0; }
+.t-guide ul { margin: 0 0 24px; padding-left: 1.2em; display: grid; gap: 6px; }
+.t-guide p { margin: 0 0 12px; }
+.t-guide .cite { vertical-align: baseline; }
+.drama-title { grid-column: 1 / -1; margin: 4px 0 0; font: 500 1.25em/1.4 var(--serif); color: var(--text); }
+.drama-about { grid-column: 1 / -1; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: .9em; line-height: 1.7; }
+.drama-about h2 { margin: 0 0 16px; font: 500 1.1em/1.4 var(--serif); color: var(--text); }
+.drama-about article + article { margin-top: 24px; }
+.drama-about h3 { margin: 0 0 4px; font-size: 1em; color: var(--text); }
+.drama-about p { margin: 0 0 4px; }
+.drama-about .src { font-size: .92em; }
+.drama-about ol { margin: 12px 0 0; padding-left: 1.3em; display: grid; gap: 10px; }
+.drama-about b { color: var(--text); font-weight: 500; }
+
+/* ================= plain pages: about, one drama episode ================= */
+.doc-page { min-height: 100vh; }
+.doc-nav { display: flex; gap: 4px; }
+.doc-nav a { padding: 8px 12px; border-radius: 999px; color: var(--muted); text-decoration: none; font-size: .9em; font-weight: 500; }
+.doc-nav a:hover { background: var(--surface-2); color: var(--text); }
+.doc { max-width: 680px; margin: 0 auto; padding: 24px 20px 64px; line-height: 1.8; }
+.doc h1 { margin: 8px 0 16px; font: 500 1.6em/1.4 var(--serif); }
+.doc h2 { margin: 32px 0 8px; font: 500 1.15em/1.5 var(--serif); }
+.doc p { margin: 0 0 12px; }
+.doc ol, .doc ul { padding-left: 1.3em; }
+.doc li + li { margin-top: 6px; }
+.doc a { color: var(--accent); }
+.doc .src { color: var(--muted); font-size: .92em; }
+.crumbs { font-size: .85em; color: var(--muted); }
+.crumbs a { color: var(--muted); }
+.ep-video { display: block; height: min(70vh, 640px); width: auto; max-width: 100%; aspect-ratio: 9 / 16; margin: 8px auto 20px; border-radius: 14px; background: #0f0d0b; }
+.ep-list a[aria-current="page"] { color: var(--text); font-weight: 600; text-decoration: none; }
+.doc .next { font-weight: 500; }
+.disclaimer a, .t-guide a, .drama-about a { color: inherit; }
+@media (max-width: 600px) {
+  .doc-nav a { padding: 8px; font-size: .85em; }
+  .doc { padding: 16px 16px 48px; }
+  .doc h1 { font-size: 1.4em; }
+}
+
+/* light / dark switch (theme.js) */
+.theme-btn { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; }
+.theme-btn .ico { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.doc-nav { align-items: center; }
+@media (max-width: 420px) {   /* name, switch, text size and new chat must share one line */
+  .topbar { padding-left: 12px; padding-right: 12px; }
+  .brand { gap: 6px; }
+  .brand .mark { width: 22px; height: 22px; }
+  .brand .brand-name { font-size: .95em; }
+  .topbar-actions { gap: 2px; }
+  .topbar .ghost { padding: 4px 8px; }
+  .theme-btn { width: 32px; height: 32px; }
+}
+.doc-nav .theme-btn { border-color: transparent; }
+.doc-nav a { white-space: nowrap; }
+@media (max-width: 420px) { .doc-nav { gap: 0; } .doc-nav a { padding: 6px; font-size: .8em; } }
+@media (max-width: 340px) { .doc-page .brand-name { display: none; } }   /* the wheel still links home */
+
+/* ================= practice journal: note after a session, month calendar ================= */
+.linkish { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.linkish.danger { color: var(--muted); }
+.t-note textarea { width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); font: inherit; line-height: 1.7; resize: vertical; }
+.t-note textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.t-month { display: flex; align-items: center; gap: 4px; }
+.t-month span { min-width: 9em; text-align: center; font-weight: 500; }
+.t-month button { width: 40px; height: 40px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-size: 1.3em; }
+.t-month button:hover { background: var(--surface-2); color: var(--text); }
+.t-cal-week, .t-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.t-cal-week span { padding-bottom: 4px; color: var(--muted); font-size: .75em; }
+.cal-day { position: relative; display: grid; place-items: center; aspect-ratio: 1; max-height: 48px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font: inherit; font-size: .88em; font-variant-numeric: tabular-nums; }
+.cal-day.today { box-shadow: inset 0 0 0 1px var(--accent); color: var(--text); }
+.cal-day.has { color: var(--text); font-weight: 600; background: color-mix(in srgb, var(--sit) 14%, transparent); }
+.cal-day.has.lv2 { background: color-mix(in srgb, var(--sit) 26%, transparent); }
+.cal-day.has.lv3 { background: color-mix(in srgb, var(--sit) 40%, transparent); }
+.cal-day.has::after { content: ""; position: absolute; bottom: 5px; width: 4px; height: 4px; border-radius: 50%; background: var(--sit); }
+.cal-day.has:hover { filter: brightness(1.05); }
+.cal-day[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--sit); }
+.t-day ul { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 12px; }
+.t-day li { padding: 12px 14px; border-radius: 12px; background: var(--surface-2); }
+.day-head { font-size: .9em; }
+.day-note { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.day-actions { display: flex; gap: 16px; margin-top: 8px; font-size: .85em; }
+.t-log-foot { margin: 16px 0 0; color: var(--muted); font-size: .8em; line-height: 1.7; }
+
+/* ================= minimal timer: the first screen fits the window, everything else is a dialog ================= */
+.timer-inner { min-height: 100%; box-sizing: border-box; gap: 0; padding-top: 0; }
+.timer-main { min-height: 100%; display: flex; flex-direction: column; justify-content: center; gap: clamp(12px, 2.4vh, 24px); padding: 12px 0 20px; }
+.timer-stage .lotus { width: auto; height: clamp(180px, 40vh, 380px); max-width: 100%; }
+.t-clock { font-size: clamp(2.6em, 7.5vh, 4em); }
+.t-title { font-size: .85em; letter-spacing: .04em; }
+.t-actions .t-stop { color: var(--muted); }
+.t-actions .t-stop:hover { color: var(--text); }
+.t-guide { max-width: 460px; margin: 8px auto 0; padding: 32px 0 8px; border-top: 0; text-align: center; font-size: .85em; }
+.t-guide h2 { font-size: 1.05em; }
+.t-guide p { text-wrap: pretty; }
+.t-sheet .t-setup-head p { margin-top: 2px; }
+.t-sheet textarea { width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; line-height: 1.7; resize: vertical; }
+.t-sheet textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.t-sheet .t-setup-foot { justify-content: flex-end; }
+.t-sheet #t-note-status { margin-right: auto; }
+.t-log { gap: 12px; }
+.t-log .t-month { justify-content: center; }
+.t-log .t-day ul { margin-top: 0; }
+@media (max-width: 600px) {
+  .timer-main { padding: 8px 0 16px; }
+  .t-actions > button { padding: 0 6px; }
+}
+/* the timer's first screen is exactly the visible area; the text about practice starts below it */
+.timer { container-type: size; }
+.timer-main { min-height: 100cqh; box-sizing: border-box; }
+
+/* ================= the meditation page as one scene: sky, hills and pond behind the lotus ================= */
+.timer, .t-backdrop {
+  --bd-s0: #f7f4ee; --bd-s1: #f8ebdc; --bd-s2: #f5dcc6; --bd-g0: rgb(253 226 196 / 85%); --bd-g1: rgb(253 226 196 / 0%);
+  --bd-hill-far: #ecdfcd; --bd-hill-near: #e5d4bf; --bd-w0: #eadccb; --bd-w1: #f3ece2; --bd-line: #d9c9b3;
+  --bd-star: 0; --bd-drift: #d9a54e;
+  --sky2: rgb(247 244 238 / 0%); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .timer, :root:not([data-theme="light"]) .t-backdrop {
+    --bd-s0: #0d0e13; --bd-s1: #17161c; --bd-s2: #2a231f; --bd-g0: rgb(92 72 52 / 55%); --bd-g1: rgb(92 72 52 / 0%);
+    --bd-hill-far: #1b1a1e; --bd-hill-near: #201d1d; --bd-w0: #1c1916; --bd-w1: #13110f; --bd-line: #3a322a;
+    --bd-star: .85; --bd-drift: #f2cf7c; --sky2: rgb(21 19 15 / 0%); }
+}
+:root[data-theme="dark"] .timer, :root[data-theme="dark"] .t-backdrop {
+  --bd-s0: #0d0e13; --bd-s1: #17161c; --bd-s2: #2a231f; --bd-g0: rgb(92 72 52 / 55%); --bd-g1: rgb(92 72 52 / 0%);
+  --bd-hill-far: #1b1a1e; --bd-hill-near: #201d1d; --bd-w0: #1c1916; --bd-w1: #13110f; --bd-line: #3a322a;
+  --bd-star: .85; --bd-drift: #f2cf7c; --sky2: rgb(21 19 15 / 0%); }
+.t-backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; display: none; }
+.t-backdrop .bd-scene { display: block; width: 100%; height: 100%; }
+.timer-inner { position: relative; z-index: 1; }
+.t-backdrop .bd-s0 { stop-color: var(--bd-s0); } .t-backdrop .bd-s1 { stop-color: var(--bd-s1); } .t-backdrop .bd-s2 { stop-color: var(--bd-s2); }
+.t-backdrop .bd-g0 { stop-color: var(--bd-g0); } .t-backdrop .bd-g1 { stop-color: var(--bd-g1); }
+.t-backdrop .bd-w0 { stop-color: var(--bd-w0); } .t-backdrop .bd-w1 { stop-color: var(--bd-w1); }
+.bd-hill.far { fill: var(--bd-hill-far); } .bd-hill.near { fill: var(--bd-hill-near); }
+.bd-sheen { fill: var(--bd-g0); opacity: .5; }
+.bd-shimmer path { fill: none; stroke: var(--bd-line); stroke-width: 2; stroke-linecap: round; animation: bd-shimmer 14s ease-in-out infinite; }
+.bd-stem { fill: none; stroke: #6f8f62; stroke-width: 4; stroke-linecap: round; }
+.bd-petal { stroke: rgb(150 50 70 / 22%); stroke-width: .8; }
+.bd-petal.back { fill: url(#pg-back); } .bd-petal.front { fill: url(#pg-front); }
+.bd-stars circle { fill: #f4ead8; opacity: var(--bd-star); animation: bd-twinkle 5s ease-in-out infinite; }
+.bd-drift circle { fill: var(--bd-drift); opacity: 0; transform-box: fill-box; animation: bd-drift 18s ease-in-out infinite; }
+@keyframes bd-shimmer { 50% { transform: translateX(14px); opacity: .55; } }
+@keyframes bd-twinkle { 50% { opacity: calc(var(--bd-star) * .35); } }
+@keyframes bd-drift { 0% { transform: translate(0, 0); opacity: 0; } 20% { opacity: .7; } 70% { opacity: .5; } 100% { transform: translate(24px, -260px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .bd-shimmer path, .bd-stars circle, .bd-drift circle { animation: none; } .bd-drift { display: none; } }
+.bd-corner { position: absolute; bottom: -2%; left: 0; width: clamp(150px, 30vw, 440px); height: auto; overflow: visible; }   /* pads run off the window, never cut by their own box */
+.bd-corner.right { left: auto; right: 0; transform: scaleX(-1); }
+.bd-corner .pad path:first-child { fill: url(#t-pad); opacity: .9; }
+.bd-corner .vein { fill: none; stroke: #5d7c52; stroke-width: .8; opacity: .45; }
+/* secondary buttons stay readable over the pond */
+.t-actions .t-stop { background: color-mix(in srgb, var(--bg) 72%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+@media (max-width: 600px) { .bd-corner { display: none; } }   /* a phone has no room beside the lotus and buttons */
+
+/* on the meditation tab the scene fills the whole window: bars turn see-through, panels float on it */
+body[data-tab="timer"] .t-backdrop { display: block; }
+body[data-tab="timer"] .topbar, body[data-tab="timer"] .layout { position: relative; z-index: 1; }
+body[data-tab="timer"] .topbar, body[data-tab="timer"] .sidenav { background: transparent; border-color: transparent; }
+body[data-tab="timer"] .sidenav a[aria-current="page"] { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+body[data-tab="timer"] .t-guide { padding: 24px; border-radius: 16px; background: color-mix(in srgb, var(--bg) 82%, transparent);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+@media (max-width: 900px) {   /* the menu is a bar along the bottom here: frosted so the pond still shows through */
+  body[data-tab="timer"] .sidenav { background: color-mix(in srgb, var(--bg) 62%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 }

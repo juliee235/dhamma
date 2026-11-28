@@ -17,12 +17,13 @@ import os
 import re
 import hashlib
 import hmac
+import ipaddress
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Literal
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -38,6 +39,8 @@ STATIC = Path(__file__).parent / "static"
 MAX_QUESTION_CHARS = 500
 MAX_HISTORY_MESSAGES = 8          # last 4 exchanges are sent to the agent
 RATE_LIMIT = int(os.getenv("RATE_LIMIT_PER_DAY", "10"))     # questions per IP per day (Thai time)
+# all visitors together: caps the model bill even if someone asks from many addresses
+SITE_LIMIT = int(os.getenv("SITE_LIMIT_PER_DAY", "300"))
 THAI_TZ = timezone(timedelta(hours=7))                      # Asia/Bangkok, no daylight saving
 MAX_RANGE = 200
 
@@ -72,16 +75,12 @@ class DailyLimiter:
     def allow(self, ip: str) -> bool:
         day = today()
         key = quota_key(ip, day)
-        try:
-            _ensure_schema()
-            # the first SET takes the node's write lock, so concurrent requests count one after another
-            rec = q.get_driver().execute_query(
-                "MERGE (r:RateLimit {key: $key}) ON CREATE SET r.day = $day, r.n = 0 "
-                "SET r.day = $day WITH r WHERE r.n < $limit SET r.n = r.n + 1 RETURN r.n AS n",
-                key=key, day=day, limit=self.limit).records
-        except Exception:
-            log.exception("rate limit check failed; allowing the question")
-            return True
+        _ensure_schema()   # a database error propagates: chat() refuses rather than ask the model uncounted
+        # the first SET takes the node's write lock, so concurrent requests count one after another
+        rec = q.get_driver().execute_query(
+            "MERGE (r:RateLimit {key: $key}) ON CREATE SET r.day = $day, r.n = 0 "
+            "SET r.day = $day WITH r WHERE r.n < $limit SET r.n = r.n + 1 RETURN r.n AS n",
+            key=key, day=day, limit=self.limit).records
         return bool(rec)
 
     def remaining(self, ip: str) -> int | None:
@@ -96,6 +95,8 @@ class DailyLimiter:
 
 
 limiter = DailyLimiter(RATE_LIMIT)
+site_budget = DailyLimiter(SITE_LIMIT)   # one shared count, under the fixed name SITE_KEY
+SITE_KEY = "*site*"
 
 
 def count_answer() -> None:
@@ -203,25 +204,70 @@ if VIDEOS.is_dir():
 
 
 SITE = "https://www.dhammamitima.com"
+PUBLISHER = {"@type": "Organization", "name": "ธรรมะมีที่มา"}   # the Facebook page that runs the site
 # Each tab has its own address, title and description so search engines can list it on its own.
 PAGES = {
     "/": ("พระไตรปิฎก AI · ถามตอบพระไตรปิฎกภาษาไทย พร้อมอ้างอิงตัวบท",
           "ถามเรื่องธรรมะ พระสูตร และพระวินัย ได้คำตอบจากพระไตรปิฎกภาษาไทย พร้อมบอกเล่มและข้อที่มา "
           "กดอ่านตัวบทต้นฉบับได้ทันที ใช้ฟรี ไม่แสวงหากำไร"),
     "/timer": ("จับเวลาเดินจงกรมและนั่งสมาธิ · พระไตรปิฎก AI",
-               "นาฬิกาจับเวลาภาวนาฟรี ตั้งรอบเดินจงกรมและนั่งสมาธิได้ เช่น เดิน 20 นั่ง 20 หรือนั่งอย่างเดียว "
+               "นาฬิกาจับเวลาภาวนาฟรี ตั้งรอบเดินจงกรมและนั่งสมาธิ เช่น เดิน 20 นั่ง 20 "
                "มีเสียงระฆังและเสียงบอกเมื่อเปลี่ยนอิริยาบถ ใช้บนมือถือได้ ไม่ต้องติดตั้งแอป"),
     "/drama": ("ละครสั้นจากพระไตรปิฎก · องคุลิมาล พระเทวทัต",
                "ละครสั้นแนวตั้งเล่าเรื่องจากพระไตรปิฎกตามตัวบท เช่น องคุลิมาล และพระเทวทัต "
                "แต่ละตอนบอกเล่มและข้อที่มา กดอ่านตัวบทต้นฉบับได้"),
 }
-PAGE_HTML = (STATIC / "index.html").read_text(encoding="utf-8")
+VIEW_OF = {"/": "chat", "/timer": "timer", "/drama": "drama"}
+DRAMAS = json.loads((STATIC / "dramas.json").read_text(encoding="utf-8"))
+# each episode has its own page at /drama/<video file name>, e.g. /drama/angulimala-1
+EPISODES = {Path(e["video"]).stem: (s, i, e) for s in DRAMAS for i, e in enumerate(s["episodes"])}
+
+
+def ep_url(e: dict) -> str:
+    return f"/drama/{Path(e['video']).stem}"
+
+
+def ld(obj: dict) -> str:
+    """JSON-LD for a <script> block; "</" is escaped so no text can close the tag."""
+    return json.dumps({"@context": "https://schema.org", **obj}, ensure_ascii=False).replace("</", "<\\/")
+
+
+def drama_about() -> str:
+    """The drama stories as plain text in the page, so readers and crawlers that skip JavaScript still see them."""
+    out = ['<section class="drama-about" aria-labelledby="drama-about-h"><h2 id="drama-about-h">เรื่องในชุดนี้</h2>']
+    for s in DRAMAS:
+        eps = "".join(f"<li><a href=\"{ep_url(e)}\"><b>{escape(e['title'])}</b></a> · {escape(e['source'])}<br>"
+                      f"{escape(e['summary'])}</li>" for e in s["episodes"])
+        out.append(f"<article><h3>{escape(s['title'])}</h3><p>{escape(s['summary'])}</p>"
+                   f"<p class=\"src\">ที่มา: พระไตรปิฎก {escape(s['source'])}</p>{f'<ol>{eps}</ol>' if eps else ''}</article>")
+    out.append('<p class="src"><a href="/about">เกี่ยวกับเว็บนี้และที่มาของตัวบท</a></p>')
+    return "".join(out) + "</section>"
+
+
+PAGE_HTML = (STATIC / "index.html").read_text(encoding="utf-8").replace("<!--DRAMA_ABOUT-->", drama_about())
+DOC_HTML = (STATIC / "page.html").read_text(encoding="utf-8")
+# structured data that only one tab's address carries
+PAGE_LD = {
+    "/timer": {"@type": "WebApplication", "name": "จับเวลาเดินจงกรมและนั่งสมาธิ", "url": SITE + "/timer",
+               "applicationCategory": "LifestyleApplication", "operatingSystem": "เว็บเบราว์เซอร์",
+               "inLanguage": "th", "isAccessibleForFree": True,
+               "offers": {"@type": "Offer", "price": "0", "priceCurrency": "THB"}},
+    "/drama": {"@type": "ItemList", "name": "ละครสั้นจากพระไตรปิฎก",
+               "itemListElement": [{"@type": "ListItem", "position": n, "url": SITE + ep_url(e), "name": e["title"]}
+                                   for n, e in enumerate((e for s in DRAMAS for e in s["episodes"]), 1)]},
+}
 
 
 def page(path: str) -> HTMLResponse:
     title, desc = PAGES[path]
     html = (PAGE_HTML.replace("__TITLE__", escape(title)).replace("__DESC__", escape(desc))
             .replace("__URL__", SITE + path))
+    html = html.replace("<body>", f'<body data-tab="{VIEW_OF[path]}">', 1)   # the scene shows before any script runs
+    extra = PAGE_LD.get(path)
+    html = html.replace("<!--PAGE_JSONLD-->", f'<script type="application/ld+json">{ld(extra)}</script>' if extra else "")
+    for view in VIEW_OF.values():   # this address's tab is visible and carries the page's one h1
+        on = view == VIEW_OF[path]
+        html = html.replace(f"__HIDDEN_{view}__", "" if on else "hidden").replace(f"__H_{view}__", "h1" if on else "h2")
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
@@ -240,12 +286,112 @@ def drama_page() -> HTMLResponse:
     return page("/drama")
 
 
+def doc(path: str, title: str, desc: str, body: str, data: dict, og_type: str = "website",
+        image: str = SITE + "/og.png") -> HTMLResponse:
+    """A plain server-rendered page (about, one drama episode) in the site's look, without the app around it."""
+    html = DOC_HTML
+    for k, v in (("__TITLE__", escape(title)), ("__DESC__", escape(desc)), ("__URL__", SITE + path),
+                 ("__OG_TYPE__", og_type), ("__OG_IMAGE__", image), ("__JSONLD__", ld(data)), ("__BODY__", body)):
+        html = html.replace(k, v)
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/drama/{slug}")
+def episode_page(slug: str) -> HTMLResponse:
+    if slug not in EPISODES:
+        raise HTTPException(404, "ไม่พบตอนนี้")
+    s, i, e = EPISODES[slug]
+    title, url, poster = e["title"], SITE + ep_url(e), SITE + e["poster"]
+    eps = "".join(f'<li><a href="{ep_url(x)}"{" aria-current=page" if j == i else ""}>{escape(x["title"])}</a></li>'
+                  for j, x in enumerate(s["episodes"]))
+    others = "".join(f'<li><a href="{ep_url(o["episodes"][0])}">{escape(o["title"])}</a> · {escape(o["summary"])}</li>'
+                     for o in DRAMAS if o is not s and o["episodes"])
+    nxt = s["episodes"][i + 1] if i + 1 < len(s["episodes"]) else None
+    next_html = f'<p><a class="next" href="{ep_url(nxt)}">ตอนต่อไป: {escape(nxt["title"])}</a></p>' if nxt else ""
+    others_html = f'<h2>เรื่องอื่น</h2><ul class="ep-list">{others}</ul>' if others else ""
+    body = f"""    <nav class="crumbs" aria-label="ตำแหน่ง"><a href="/drama">ละครสั้น</a> › {escape(s["title"])}</nav>
+    <h1>{escape(title)}</h1>
+    <video class="ep-video" src="{escape(e["video"])}" poster="{escape(e["poster"])}" controls playsinline preload="none"></video>
+    <p>{escape(e["summary"])}</p>
+    <p class="src">ที่มา: พระไตรปิฎก {escape(e["source"])} · <a href="/?read={escape(e["ref"])}">อ่านตัวบท</a></p>
+    {next_html}
+    <h2>ตอนทั้งหมดของเรื่อง{escape(s["title"])}</h2>
+    <ol class="ep-list">{eps}</ol>
+    {others_html}
+    <p class="src"><a href="/about">เกี่ยวกับเว็บนี้และที่มาของตัวบท</a></p>"""
+    data = {"@graph": [
+        {"@type": "VideoObject", "name": title, "description": e["summary"], "thumbnailUrl": [poster],
+         "uploadDate": e["uploaded"], "duration": e["duration"], "contentUrl": SITE + e["video"], "inLanguage": "th",
+         "url": url, "isBasedOn": f"พระไตรปิฎกภาษาไทย {e['source']}"},
+        {"@type": "BreadcrumbList", "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "ละครสั้น", "item": SITE + "/drama"},
+            {"@type": "ListItem", "position": 2, "name": title, "item": url}]}]}
+    desc = f"{e['summary']} ({e['source']})"
+    return doc(ep_url(e), f"{title} · ละครสั้นจากพระไตรปิฎก", desc, body, data, "video.episode", poster)
+
+
+ABOUT_BODY = """    <h1>เกี่ยวกับพระไตรปิฎก AI</h1>
+    <p>เว็บนี้ให้ถามเรื่องในพระไตรปิฎกภาษาไทย แล้วตอบจากตัวบท ทุกคำตอบบอกเล่มและข้อที่มา และกดเปิดอ่านตัวบทต้นฉบับได้ในหน้าเดียวกัน
+    จัดทำโดยเพจ ธรรมะมีที่มา เพื่อการศึกษา ไม่แสวงหากำไร ไม่มีโฆษณา</p>
+    <h2>ตัวบทที่ใช้</h2>
+    <p>พระไตรปิฎกภาษาไทย 45 เล่ม จากชุดข้อมูลเปิด
+    <a href="https://huggingface.co/datasets/uisp/tripitaka-siamrath" rel="noopener">uisp/tripitaka-siamrath</a>
+    เลขเล่มและหน้าตามฉบับสยามรัฐ อ้างอิงในรูป "เล่ม 13 ข้อ 521" เพื่อให้เปิดตรวจกับฉบับพิมพ์ได้</p>
+    <h2>คำตอบมาจากไหน</h2>
+    <ol>
+      <li>AI ค้นตัวบทที่เกี่ยวข้องจากฐานข้อมูลที่จัดตามเล่ม หมวด พระสูตร และข้อ</li>
+      <li>เปิดอ่านข้อที่เกี่ยวข้อง แล้วเรียบเรียงคำตอบจากตัวบท โดยต้องอ้างเล่มและข้อทุกครั้ง</li>
+      <li>หลังตอบ มีระบบตรวจอีกชั้นหนึ่งซึ่งไม่ใช่ AI ตรวจทุกอ้างอิงกับฐานข้อมูล และตรวจคำพูดในเครื่องหมายคำพูดว่าตรงกับตัวบทที่อ้าง
+      แล้วแสดงสถานะของแต่ละอ้างอิง
+        <ul>
+          <li><b>อ่านตัวบทแล้ว</b>: AI ได้เปิดอ่านข้อนั้นจริง</li>
+          <li><b>อ้างทั้งหมวด</b>: อ้างหมวดหรือพระสูตรทั้งชุด ตรงกับโครงสร้างของตัวบท</li>
+          <li><b>เห็นเพียงบางส่วน</b> และ <b>ไม่ได้เปิดอ่าน</b>: ควรเปิดตัวบทตรวจเอง</li>
+          <li><b>ไม่มีอยู่จริง</b>: เล่มหรือข้อนั้นไม่มีในพระไตรปิฎก คำตอบจะติดธงไว้</li>
+        </ul>
+      </li>
+    </ol>
+    <h2>ข้อจำกัด</h2>
+    <p>คำตอบเรียบเรียงโดย AI อาจสรุปผิด ตีความเกินตัวบท หรือไม่พบตัวบทที่เกี่ยวข้อง ควรอ่านตัวบทที่อ้างประกอบทุกครั้ง
+    และปรึกษาครูบาอาจารย์ในเรื่องการปฏิบัติ คำตอบในเว็บนี้ไม่ใช่คำวินิจฉัยทางศาสนา</p>
+    <h2>ละครสั้นและนาฬิกาภาวนา</h2>
+    <p><a href="/drama">ละครสั้นจากพระไตรปิฎก</a> เล่าเรื่องตามเนื้อความในตัวบท แต่ละตอนบอกเล่มและข้อที่มา
+    ส่วน<a href="/timer">นาฬิกาจับเวลาเดินจงกรมและนั่งสมาธิ</a> ตั้งรอบเดินและนั่งได้ มีเสียงระฆังและเสียงบอกเมื่อเปลี่ยนอิริยาบถ</p>
+    <h2>ผู้จัดทำและการแจ้งข้อผิดพลาด</h2>
+    <p>เว็บนี้จัดทำและดูแลโดยเพจ Facebook <b>ธรรมะมีที่มา</b> หากพบคำตอบที่ไม่ตรงกับตัวบท อ้างอิงผิด
+    หรือเนื้อหาในละครคลาดเคลื่อน แจ้งได้ทางข้อความของเพจ ธรรมะมีที่มา โปรดระบุคำถามหรือตอนที่พบด้วย</p>"""
+
+
+@app.get("/about")
+def about_page() -> HTMLResponse:
+    desc = ("ที่มาของตัวบท วิธีที่ AI ตอบและตรวจอ้างอิงทุกข้อ และข้อจำกัดของพระไตรปิฎก AI "
+            "เว็บถามตอบพระไตรปิฎกภาษาไทย เพื่อการศึกษา ไม่แสวงหากำไร")
+    data = {"@type": "AboutPage", "name": "เกี่ยวกับพระไตรปิฎก AI", "url": SITE + "/about", "inLanguage": "th",
+            "isPartOf": {"@type": "WebSite", "name": "พระไตรปิฎก AI", "url": SITE + "/"}, "publisher": PUBLISHER}
+    return doc("/about", "เกี่ยวกับพระไตรปิฎก AI · ที่มาของตัวบทและวิธีตรวจคำตอบ", desc, ABOUT_BODY, data)
+
+
+@app.get("/sitemap.xml")
+def sitemap() -> Response:
+    """Built from the pages and dramas.json, so a new episode is listed as soon as it is added."""
+    urls = [*PAGES, "/about", *(f"/drama/{k}" for k in EPISODES)]
+    xml = ('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+           + "".join(f"  <url><loc>{SITE}{u}</loc></url>\n" for u in urls) + "</urlset>\n")
+    return Response(xml, media_type="application/xml")
+
+
 def client_ip(request: Request) -> str:
-    """Behind Vercel / a proxy, request.client is the proxy: use the first X-Forwarded-For hop."""
+    """The address the daily limit counts. Behind Vercel / a proxy, request.client is the proxy: use the first
+    X-Forwarded-For hop (Vercel overwrites that header, so a client cannot set it). An IPv6 address counts as its
+    /64 network: one home or phone line gets a whole /64 and could otherwise ask from a new address every time."""
     fwd = request.headers.get("x-forwarded-for", "")
-    if fwd:
-        return fwd.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    ip = fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "unknown")
+    try:
+        if ipaddress.ip_address(ip).version == 6:
+            return str(ipaddress.ip_network(f"{ip}/64", strict=False))
+    except ValueError:
+        pass
+    return ip
 
 
 @app.get("/api/ping")
@@ -332,9 +478,17 @@ def passage(key: str) -> dict:
 
 @app.post("/api/chat")
 def chat(body: ChatIn, request: Request) -> StreamingResponse:
-    ip = client_ip(request)
-    if not limiter.allow(ip):
+    try:
+        # the address first, so one that is already over its limit cannot use up everyone's share
+        own_ok = limiter.allow(client_ip(request))
+        site_ok = own_ok and site_budget.allow(SITE_KEY)
+    except Exception:
+        log.exception("quota check failed; refusing the question")
+        raise HTTPException(503, "ระบบตรวจโควตาขัดข้องชั่วคราว ลองใหม่อีกสักครู่")
+    if not own_ok:
         raise HTTPException(429, f"วันนี้ถามครบ {RATE_LIMIT} คำถามแล้ว พรุ่งนี้มาถามต่อได้นะ")
+    if not site_ok:
+        raise HTTPException(429, "วันนี้มีผู้ถามครบจำนวนที่เว็บรับได้แล้ว พรุ่งนี้มาถามต่อได้นะ")
     history = [t.model_dump() for t in body.history][-MAX_HISTORY_MESSAGES:]
     return StreamingResponse(
         chat_events(body.question.strip(), history),
